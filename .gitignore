@@ -1,0 +1,38 @@
+# Python-generated files
+__pycache__/
+*.pyc
+.vscode/
+
+# Virtual environments
+**/*.so
+**/slurm-*.out
+**/*.db
+**/*.xyz
+**/*.poscar
+**/.temp/
+**/.sciagent/
+**/jnnhistory/
+**/log
+**/*.jnn
+**/Trainer.groovy
+**/*.png
+**/nep*.txt
+**/*.sh
+**/*.err
+**/*.out
+**/POTCAR
+**/PSCTR
+**/dft/**
+**/vasp/**
+**/*.log
+**/*.csv
+**/*.dat
+**/*.txt
+**/*done
+**/*npz
+**/POSCAR
+
+# Keep versioned W/Ta/Ti input/reference structures visible despite the
+# generated POSCAR ignore rule above. Production POTCAR files remain ignored.
+!structures/
+!structures/**/*.poscar
