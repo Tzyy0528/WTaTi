@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
-"""Repeatedly check a trained `.jnn` model against the fixed Al EOS set.
+"""Check a trained unary `.jnn` model against a fixed DFT EOS reference.
 
 The script searches a committee directory for `.jnn` files, parses each sibling
 `log` file for train/test error values, excludes models with large train/test
-mismatch, then selects the lowest eligible test metric. Pass `--best-jnn` to
-override automatic selection when needed.
+mismatch, then selects the lowest eligible test energy MAE.  NNAP inference is
+performed by ``src/eos_predict_jnn.groovy`` through the installed JSE runtime;
+the Python ``jsex`` module is not required.
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import math
 import os
 import re
-import sys
+import shutil
+import subprocess
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-
-from ase.io import read
 
 NUMBER_RE = r"[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?"
 TRAIN_PATTERNS = [
@@ -27,6 +28,10 @@ TRAIN_PATTERNS = [
     re.compile(rf"\btrain(?:ing)?\b\s*[:=]\s*({NUMBER_RE})", re.I),
 ]
 LOSS_PAIR_RE = re.compile(rf"\bloss\b\s*:\s*({NUMBER_RE})(?:\s*\|\s*({NUMBER_RE}))?", re.I)
+MAE_ENERGY_PAIR_RE = re.compile(
+    rf"\bMAE[-_\s]*E\b\s*:\s*({NUMBER_RE})\s*meV/atom\s*\|\s*({NUMBER_RE})\s*meV/atom",
+    re.I,
+)
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
@@ -66,6 +71,8 @@ def read_csv(path: Path) -> list[dict[str, str]]:
 
 
 def write_csv(path: Path, rows: list[dict[str, str]], fieldnames: list[str]) -> None:
+    if path.exists():
+        raise FileExistsError(f"Refusing to overwrite existing output: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -83,23 +90,31 @@ def find_log_for_jnn(jnn_path: Path) -> Path | None:
 
 
 def parse_training_metric(log_path: Path) -> TrainingMetric | None:
-    metric = None
+    fallback_metric = None
+    energy_metric = None
     text = log_path.read_text(encoding="utf-8", errors="ignore")
     for raw_line in text.splitlines():
         line = ANSI_RE.sub("", raw_line)
+        energy_match = MAE_ENERGY_PAIR_RE.search(line)
+        if energy_match:
+            energy_metric = TrainingMetric(
+                train=float(energy_match.group(1)),
+                test=float(energy_match.group(2)),
+            )
+            continue
         if "train" not in line.lower():
             continue
         for pattern in TRAIN_PATTERNS:
             match = pattern.search(line)
             if match:
-                metric = TrainingMetric(train=float(match.group(1)))
+                fallback_metric = TrainingMetric(train=float(match.group(1)))
                 break
         loss_match = LOSS_PAIR_RE.search(line)
         if loss_match:
             train = float(loss_match.group(1))
             test = float(loss_match.group(2)) if loss_match.group(2) is not None else None
-            metric = TrainingMetric(train=train, test=test)
-    return metric
+            fallback_metric = TrainingMetric(train=train, test=test)
+    return energy_metric or fallback_metric
 
 
 def find_jnn_candidates(root: Path) -> list[Path]:
@@ -143,7 +158,11 @@ def select_best_jnn(
         metric = parse_training_metric(log_path) if log_path else None
         reason = exclusion_reason(metric, max_train_test_ratio, max_train_test_gap) if metric else ""
         eligible = bool(metric and not reason)
+        fold_match = re.fullmatch(r"train-(\d+)", jnn_path.parent.name)
         rows.append({
+            "fold": fold_match.group(1) if fold_match else "",
+            "metric_name": "energy_mae",
+            "metric_unit": "meV/atom",
             "jnn_path": str(jnn_path),
             "log_path": str(log_path) if log_path else "",
             "train_metric": "" if metric is None else format_optional(metric.train),
@@ -176,36 +195,50 @@ def normalize_prediction_rows(rows: list[dict[str, str]]) -> list[dict[str, str]
     return rows
 
 
-def predict_eos(metadata_rows: list[dict[str, str]], jnn_path: Path, train_metric: float | None) -> list[dict[str, str]]:
-    from jsex.nnap import NNAP
+def predict_eos(
+    metadata_path: Path,
+    jnn_path: Path,
+    output_path: Path,
+) -> list[dict[str, str]]:
+    """Run the JSE/Groovy evaluator and return its validated prediction rows."""
+    if output_path.exists():
+        raise FileExistsError(f"Refusing to overwrite existing prediction output: {output_path}")
+    evaluator = Path(__file__).with_name("eos_predict_jnn.groovy")
+    if not evaluator.exists():
+        raise FileNotFoundError(f"Missing JSE EOS evaluator: {evaluator}")
+    jse = shutil.which("jse")
+    if jse is None:
+        raise RuntimeError(
+            "The JSE executable is unavailable. Load the jse module before EOS evaluation."
+        )
 
-    potential = NNAP(str(jnn_path))
-    calc = potential.ase() if hasattr(potential, "ase") else potential.asAseCalculator()
-    out_rows = []
-    for meta in normalize_prediction_rows(metadata_rows):
-        atoms = read(meta["poscar_path"])
-        atoms.calc = calc
-        energy = float(atoms.get_potential_energy())
-        natoms = int(meta["natoms"])
-        out = {
-            "structure": meta["structure"],
-            "scale": meta["scale"],
-            "natoms": str(natoms),
-            "volume_A3": meta["volume_A3"],
-            "volume_per_atom_A3": meta["volume_per_atom_A3"],
-            "volume_ratio": meta.get("volume_ratio", ""),
-            "nnap_energy_eV": f"{energy:.12f}",
-            "nnap_energy_per_atom_eV": f"{energy / natoms:.12f}",
-            "jnn_path": str(jnn_path),
-            "train_metric": "" if train_metric is None else f"{train_metric:.12g}",
-        }
-        out_rows.append(out)
-    return out_rows
+    subprocess.run(
+        [jse, str(evaluator), str(metadata_path), str(jnn_path), str(output_path)],
+        check=True,
+    )
+    rows = read_csv(output_path)
+    normalized = normalize_prediction_rows(rows)
+    if not normalized:
+        raise ValueError("JSE EOS evaluator produced no prediction rows")
+    return normalized
 
 
 def merge_reference(pred_rows: list[dict[str, str]], ref_rows: list[dict[str, str]] | None) -> list[dict[str, str]]:
     if not ref_rows:
         return pred_rows
+    pred_keys = [(row["structure"], row["scale"]) for row in pred_rows]
+    ref_keys = [(row["structure"], row["scale"]) for row in ref_rows]
+    if len(set(pred_keys)) != len(pred_keys):
+        raise ValueError("Duplicate structure/scale keys in NNAP EOS predictions")
+    if len(set(ref_keys)) != len(ref_keys):
+        raise ValueError("Duplicate structure/scale keys in DFT EOS reference")
+    if set(pred_keys) != set(ref_keys):
+        missing = sorted(set(ref_keys) - set(pred_keys))
+        extra = sorted(set(pred_keys) - set(ref_keys))
+        raise ValueError(
+            "NNAP/DFT EOS structure-scale keys differ; "
+            f"missing predictions={missing[:3]}, extra predictions={extra[:3]}"
+        )
     ref_map = {
         (row["structure"], row["scale"]): row
         for row in ref_rows
@@ -214,14 +247,152 @@ def merge_reference(pred_rows: list[dict[str, str]], ref_rows: list[dict[str, st
     for row in pred_rows:
         out = dict(row)
         ref = ref_map.get((row["structure"], row["scale"]))
-        if ref:
-            out["dft_energy_eV"] = ref.get("dft_energy_eV", "")
-            out["dft_energy_per_atom_eV"] = ref.get("dft_energy_per_atom_eV", "")
-        else:
-            out["dft_energy_eV"] = ""
-            out["dft_energy_per_atom_eV"] = ""
+        assert ref is not None
+        if int(out["natoms"]) != int(ref["natoms"]):
+            raise ValueError(
+                f"NNAP/DFT atom-count mismatch for {out['structure']} scale {out['scale']}"
+            )
+        out["dft_energy_eV"] = ref.get("dft_energy_eV", "")
+        out["dft_energy_per_atom_eV"] = ref.get("dft_energy_per_atom_eV", "")
+        if not out["dft_energy_per_atom_eV"]:
+            raise ValueError(
+                f"DFT EOS reference lacks energy for {out['structure']} scale {out['scale']}"
+            )
         merged.append(out)
     return merged
+
+
+def enrich_phase_aligned_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Add raw and per-phase zero-aligned energy errors to DFT-labelled rows."""
+    if not rows or not all(row.get("dft_energy_per_atom_eV") for row in rows):
+        return rows
+
+    by_structure: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for row in rows:
+        by_structure[row["structure"]].append(row)
+
+    for structure_rows in by_structure.values():
+        dft_min = min(float(row["dft_energy_per_atom_eV"]) for row in structure_rows)
+        nnap_min = min(float(row["nnap_energy_per_atom_eV"]) for row in structure_rows)
+        for row in structure_rows:
+            dft = float(row["dft_energy_per_atom_eV"])
+            nnap = float(row["nnap_energy_per_atom_eV"])
+            dft_relative = dft - dft_min
+            nnap_relative = nnap - nnap_min
+            row["raw_energy_error_per_atom_eV"] = f"{nnap - dft:.12f}"
+            row["dft_relative_energy_per_atom_eV"] = f"{dft_relative:.12f}"
+            row["nnap_relative_energy_per_atom_eV"] = f"{nnap_relative:.12f}"
+            row["phase_aligned_energy_error_per_atom_eV"] = (
+                f"{nnap_relative - dft_relative:.12f}"
+            )
+    return rows
+
+
+def error_statistics(errors: list[float]) -> tuple[float, float, float]:
+    if not errors:
+        raise ValueError("Cannot calculate EOS error statistics with no errors")
+    mae = sum(abs(value) for value in errors) / len(errors)
+    rmse = math.sqrt(sum(value * value for value in errors) / len(errors))
+    return mae, rmse, max(abs(value) for value in errors)
+
+
+def format_metric(value: float | None) -> str:
+    return "" if value is None else f"{value:.12g}"
+
+
+def calculate_eos_metrics(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Return raw and phase-aligned energy metrics with grid-minimum locations."""
+    if not rows or not all(row.get("dft_energy_per_atom_eV") for row in rows):
+        return []
+
+    by_structure: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for row in rows:
+        by_structure[row["structure"]].append(row)
+
+    metrics: list[dict[str, str]] = []
+    all_raw_errors: list[float] = []
+    all_aligned_errors: list[float] = []
+    ordered_structures = [name for name in ("bcc", "fcc", "hcp") if name in by_structure]
+    ordered_structures += sorted(set(by_structure) - set(ordered_structures))
+    for structure in ordered_structures:
+        structure_rows = by_structure[structure]
+        raw_errors = [float(row["raw_energy_error_per_atom_eV"]) for row in structure_rows]
+        aligned_errors = [
+            float(row["phase_aligned_energy_error_per_atom_eV"])
+            for row in structure_rows
+        ]
+        raw_mae, raw_rmse, raw_max = error_statistics(raw_errors)
+        aligned_mae, aligned_rmse, aligned_max = error_statistics(aligned_errors)
+        dft_min_row = min(
+            structure_rows,
+            key=lambda row: float(row["dft_energy_per_atom_eV"]),
+        )
+        nnap_min_row = min(
+            structure_rows,
+            key=lambda row: float(row["nnap_energy_per_atom_eV"]),
+        )
+        dft_min_volume = float(dft_min_row["volume_per_atom_A3"])
+        nnap_min_volume = float(nnap_min_row["volume_per_atom_A3"])
+        metrics.append({
+            "structure": structure,
+            "n_points": str(len(structure_rows)),
+            **metric_error_fields("raw_energy", raw_mae, raw_rmse, raw_max),
+            **metric_error_fields(
+                "phase_aligned_relative_energy",
+                aligned_mae,
+                aligned_rmse,
+                aligned_max,
+            ),
+            "dft_grid_min_scale": dft_min_row["scale"],
+            "nnap_grid_min_scale": nnap_min_row["scale"],
+            "dft_grid_min_volume_per_atom_A3": format_metric(dft_min_volume),
+            "nnap_grid_min_volume_per_atom_A3": format_metric(nnap_min_volume),
+            "grid_min_volume_shift_A3_per_atom": format_metric(
+                nnap_min_volume - dft_min_volume
+            ),
+            "dft_grid_min_energy_per_atom_eV": dft_min_row["dft_energy_per_atom_eV"],
+            "nnap_grid_min_energy_per_atom_eV": nnap_min_row["nnap_energy_per_atom_eV"],
+        })
+        all_raw_errors.extend(raw_errors)
+        all_aligned_errors.extend(aligned_errors)
+
+    raw_mae, raw_rmse, raw_max = error_statistics(all_raw_errors)
+    aligned_mae, aligned_rmse, aligned_max = error_statistics(all_aligned_errors)
+    metrics.append({
+        "structure": "all",
+        "n_points": str(len(rows)),
+        **metric_error_fields("raw_energy", raw_mae, raw_rmse, raw_max),
+        **metric_error_fields(
+            "phase_aligned_relative_energy",
+            aligned_mae,
+            aligned_rmse,
+            aligned_max,
+        ),
+        "dft_grid_min_scale": "",
+        "nnap_grid_min_scale": "",
+        "dft_grid_min_volume_per_atom_A3": "",
+        "nnap_grid_min_volume_per_atom_A3": "",
+        "grid_min_volume_shift_A3_per_atom": "",
+        "dft_grid_min_energy_per_atom_eV": "",
+        "nnap_grid_min_energy_per_atom_eV": "",
+    })
+    return metrics
+
+
+def metric_error_fields(
+    prefix: str,
+    mae_eV: float,
+    rmse_eV: float,
+    max_eV: float,
+) -> dict[str, str]:
+    return {
+        f"{prefix}_mae_eV_per_atom": format_metric(mae_eV),
+        f"{prefix}_rmse_eV_per_atom": format_metric(rmse_eV),
+        f"{prefix}_max_abs_eV_per_atom": format_metric(max_eV),
+        f"{prefix}_mae_meV_per_atom": format_metric(1000.0 * mae_eV),
+        f"{prefix}_rmse_meV_per_atom": format_metric(1000.0 * rmse_eV),
+        f"{prefix}_max_abs_meV_per_atom": format_metric(1000.0 * max_eV),
+    }
 
 
 def apply_eos_plot_style(plt) -> None:
@@ -398,19 +569,18 @@ def plot_eos_error(rows: list[dict[str, str]], out_path: Path, title: str) -> bo
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Check Al fcc/bcc/hcp EOS with the lowest eligible test-error .jnn "
-            "after filtering large train/test mismatch."
+            "Check a unary bcc/fcc/hcp EOS set with the lowest eligible "
+            "test-energy-MAE .jnn after filtering train/test mismatch."
         )
     )
     parser.add_argument(
         "--metadata",
-        default="results/al_eos_benchmark/eos_reference/eos_structures.csv",
+        required=True,
         help="EOS structures metadata CSV.",
     )
     parser.add_argument(
         "--reference-csv",
-        default="results/al_eos_benchmark/eos_reference/eos_reference.csv",
-        help="Optional DFT EOS reference CSV. Used when present unless --no-reference is set.",
+        help="Optional DFT EOS reference CSV. Required unless --no-reference is set.",
     )
     parser.add_argument(
         "--jnn-root",
@@ -427,8 +597,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output-dir",
-        default="results/al_eos_benchmark/evaluations",
         help="Root output directory for EOS prediction results.",
+        required=True,
+    )
+    parser.add_argument(
+        "--element",
+        default="Unary",
+        help="Element label used in plot titles.",
     )
     parser.add_argument(
         "--max-train-test-ratio",
@@ -452,9 +627,10 @@ def main() -> None:
     args = parse_args()
     if not args.best_jnn and not args.jnn_root:
         raise SystemExit("Either --jnn-root or --best-jnn is required")
+    if not args.no_reference and not args.reference_csv:
+        raise SystemExit("--reference-csv is required unless --no-reference is set")
 
     selection_rows: list[dict[str, str]] = []
-    train_metric = None
     selected_metric: TrainingMetric | None = None
     if args.best_jnn:
         best_jnn = Path(args.best_jnn).resolve()
@@ -468,16 +644,35 @@ def main() -> None:
             max_train_test_ratio=max_ratio,
             max_train_test_gap=args.max_train_test_gap,
         )
-        train_metric = selected_metric.selection
 
     out_dir = Path(args.output_dir) / args.model_id
-    out_dir.mkdir(parents=True, exist_ok=True)
+    if out_dir.exists():
+        raise FileExistsError(f"Refusing to overwrite existing EOS evaluation: {out_dir}")
+
+    metadata_path = Path(args.metadata)
+    metadata_rows = normalize_prediction_rows(read_csv(metadata_path))
+    if not metadata_rows:
+        raise ValueError(f"EOS metadata has no data rows: {metadata_path}")
+    reference_path = Path(args.reference_csv) if args.reference_csv else None
+    ref_rows = None
+    if not args.no_reference:
+        assert reference_path is not None
+        if not reference_path.exists():
+            raise FileNotFoundError(f"Missing DFT EOS reference: {reference_path}")
+        ref_rows = read_csv(reference_path)
+        if not ref_rows:
+            raise ValueError(f"DFT EOS reference has no data rows: {reference_path}")
+
+    out_dir.mkdir(parents=True)
 
     if selection_rows:
         write_csv(
             out_dir / "jnn_selection.csv",
             selection_rows,
             [
+                "fold",
+                "metric_name",
+                "metric_unit",
                 "jnn_path",
                 "log_path",
                 "train_metric",
@@ -490,14 +685,18 @@ def main() -> None:
             ],
         )
 
-    metadata_rows = read_csv(Path(args.metadata))
-    pred_rows = predict_eos(metadata_rows, best_jnn, train_metric)
-
-    ref_rows = None
-    reference_path = Path(args.reference_csv)
-    if not args.no_reference and reference_path.exists():
-        ref_rows = read_csv(reference_path)
+    pred_rows = predict_eos(
+        metadata_path,
+        best_jnn,
+        out_dir / "eos_nnap_predictions_raw.csv",
+    )
     merged_rows = merge_reference(pred_rows, ref_rows)
+    for row in merged_rows:
+        row["committee_test_energy_mae_meV_per_atom"] = (
+            "" if selected_metric is None else format_optional(selected_metric.test)
+        )
+    merged_rows = enrich_phase_aligned_rows(merged_rows)
+    metric_rows = calculate_eos_metrics(merged_rows)
 
     fieldnames = [
         "structure",
@@ -506,20 +705,50 @@ def main() -> None:
         "volume_A3",
         "volume_per_atom_A3",
         "volume_ratio",
+        "poscar_path",
+        "jnn_path",
         "nnap_energy_eV",
         "nnap_energy_per_atom_eV",
         "dft_energy_eV",
         "dft_energy_per_atom_eV",
-        "jnn_path",
-        "train_metric",
+        "raw_energy_error_per_atom_eV",
+        "dft_relative_energy_per_atom_eV",
+        "nnap_relative_energy_per_atom_eV",
+        "phase_aligned_energy_error_per_atom_eV",
+        "committee_test_energy_mae_meV_per_atom",
     ]
     write_csv(out_dir / "eos_predictions.csv", merged_rows, fieldnames)
+    if metric_rows:
+        metric_fields = [
+            "structure",
+            "n_points",
+            "raw_energy_mae_eV_per_atom",
+            "raw_energy_rmse_eV_per_atom",
+            "raw_energy_max_abs_eV_per_atom",
+            "raw_energy_mae_meV_per_atom",
+            "raw_energy_rmse_meV_per_atom",
+            "raw_energy_max_abs_meV_per_atom",
+            "phase_aligned_relative_energy_mae_eV_per_atom",
+            "phase_aligned_relative_energy_rmse_eV_per_atom",
+            "phase_aligned_relative_energy_max_abs_eV_per_atom",
+            "phase_aligned_relative_energy_mae_meV_per_atom",
+            "phase_aligned_relative_energy_rmse_meV_per_atom",
+            "phase_aligned_relative_energy_max_abs_meV_per_atom",
+            "dft_grid_min_scale",
+            "nnap_grid_min_scale",
+            "dft_grid_min_volume_per_atom_A3",
+            "nnap_grid_min_volume_per_atom_A3",
+            "grid_min_volume_shift_A3_per_atom",
+            "dft_grid_min_energy_per_atom_eV",
+            "nnap_grid_min_energy_per_atom_eV",
+        ]
+        write_csv(out_dir / "eos_metrics.csv", metric_rows, metric_fields)
     (out_dir / "best_jnn.txt").write_text(str(best_jnn) + "\n", encoding="utf-8")
-    plot_eos(merged_rows, out_dir / "eos_energy_vs_volume.png", f"Al EOS: {args.model_id}")
+    plot_eos(merged_rows, out_dir / "eos_energy_vs_volume.png", f"{args.element} EOS: {args.model_id}")
     plot_eos_error(
         merged_rows,
         out_dir / "eos_energy_error_vs_volume.png",
-        f"Al EOS error: {args.model_id}",
+        f"{args.element} EOS error: {args.model_id}",
     )
     print(f"best_jnn: {best_jnn}")
     if selected_metric is not None:
@@ -528,9 +757,9 @@ def main() -> None:
         print(f"selection_metric: {selected_metric.selection:.12g}")
         print(f"train_test_gap: {format_optional(selected_metric.gap)}")
         print(f"train_test_ratio: {format_optional(selected_metric.ratio)}")
-    elif train_metric is not None:
-        print(f"train_metric: {train_metric:.12g}")
     print(f"predictions: {out_dir / 'eos_predictions.csv'}")
+    if metric_rows:
+        print(f"metrics: {out_dir / 'eos_metrics.csv'}")
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@ element-isolated and staged; `src/ase_md.py` is not the production scheduler.
 | Compute descriptors/CUR projection | `src/CUR.py`, `src/quota_cur_selection.py` | Called by the absolute-U selector; tune descriptor parameters only with an explicit record. |
 | Generate fixed EOS structures | `src/eos_reference.py generate` | Always provide explicit `--structure`, `--output-dir`, and `--metadata` arguments. |
 | Collect EOS DFT reference | `src/eos_reference.py collect` | Use only validation DBs and an explicit `--dft-db` list. |
-| Evaluate a committee on EOS | `src/eos_check_jnn.py` | Fixed reference only; selected committee model must have an auditable fold diagnostic. |
+| Evaluate a committee on EOS | `src/eos_check_jnn.py` plus `src/eos_predict_jnn.groovy` | Fixed reference only; parses final `MAE-E` fold diagnostics, uses JSE/Groovy NNAP inference, and writes protected predictions, phase metrics, and plots. |
 | Optional RSS pool and selection | `src/rss_sampling_embedded.py`, `src/rss_quota_cur_selection.py` | Use only after separately approving the absolute-U/source/atom-count policy. |
 
 ## Source Constraints

@@ -43,10 +43,10 @@ files are fixed, validation-only EOS inputs. They may describe the same
 unrelaxed reference phase but must remain distinct input assets: generated EOS
 scales and EOS labels never enter a training database.
 
-For W and Ta, bcc is a sensible initial EOS phase to consider. For Ti, hcp is
-a sensible initial phase to consider. The full phase lists, EOS structure
-definition, and scale intervals must be approved from the supplied structures;
-they are not preset here.
+For each of W, Ta, and Ti, bcc, fcc, and hcp are mandatory EOS-validation
+phases. W/Ta use bcc as the primary phase; Ti uses hcp and bcc as primary
+phases. The scale intervals must still be approved separately for every
+element/phase.
 
 ## Before Any Calculation
 

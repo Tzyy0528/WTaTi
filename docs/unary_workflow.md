@@ -27,7 +27,9 @@ anything at this step.
 
 ## 2. EOS Reference
 
-Generate an explicit, fixed EOS grid:
+Generate explicit, fixed EOS grids for all three required phases (`bcc`, `fcc`,
+and `hcp`) of the current element. Repeat the command with an explicit
+`--structure` argument for each phase, and label/collect every phase DB:
 
 ```bash
 python3 src/eos_reference.py generate \
