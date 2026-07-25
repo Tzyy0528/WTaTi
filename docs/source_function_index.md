@@ -10,7 +10,7 @@ element-isolated and staged; `src/ase_md.py` is not the production scheduler.
 | Train a committee | `src/dbselectandtrain.py::db_select_and_train()` | First audit W/Ta/Ti `ENERGY` values against Protocol A. The default is 5000 epochs; submit through `scripts/slurm/run_train_committee.slurm`. |
 | Run one staged NVT/NPT sweep | `scripts/slurm/run_md_round.slurm` and `src/md_worker.py` | Use all committee models. NPT requires finite stress from every model. |
 | Score all MD production frames | `scripts/slurm/run_uncertainty_scoring.slurm` and `src/stratified_uncertainty_selection.py` | Use `--score-only` and retain `uncertainty_all_frames.csv`; do not create or use percentile-bin candidates. |
-| MD selection | `scripts/slurm/run_absolute_u_projected_cur.slurm` and `src/absolute_u_projected_cur_selection.py` | Calibrated absolute-U cutoff followed by current-DB-projected CUR. Source balancing, frame gaps, and a tail cap are optional flags, disabled by default. |
+| MD selection | `scripts/slurm/run_absolute_u_projected_cur.slurm` and `src/absolute_u_projected_cur_selection.py` | Calibrated absolute-U cutoff, auditable volume/force/distance gates, source-aware current.db-projected CUR, and an approved tail cap. Equal source quotas are opt-in only and require explicit approval. |
 | Compute descriptors/CUR projection | `src/CUR.py`, `src/quota_cur_selection.py` | Called by the absolute-U selector; tune descriptor parameters only with an explicit record. |
 | Generate fixed EOS structures | `src/eos_reference.py generate` | Always provide explicit `--structure`, `--output-dir`, and `--metadata` arguments. |
 | Collect EOS DFT reference | `src/eos_reference.py collect` | Use only validation DBs and an explicit `--dft-db` list. |

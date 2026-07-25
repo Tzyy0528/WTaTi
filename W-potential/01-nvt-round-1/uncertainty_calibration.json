@@ -1,28 +1,90 @@
 {
-  "all_frame_scoring_job": 13011,
-  "balance_sources": false,
-  "candidate_count": 1126,
-  "candidate_counts_by_source": {
-    "scale-0p9": 50,
-    "scale-0p95": 8,
-    "scale-1": 9,
-    "scale-1p05": 208,
-    "scale-1p1": 851
-  },
-  "candidate_frame_gap": 0,
-  "committee": "W-potential/model_versions/M0_from_D0/train-committee/train-*/*.jnn",
+  "schema_version": 1,
   "element": "W",
-  "equilibration_discarded_per_source": 500,
-  "final_frame_gap": 0,
-  "l_max": 6,
-  "n_max": 5,
-  "production_frames": 22505,
-  "r_c_A": 6.0,
   "round": "01-nvt-round-1",
-  "scored_frames": 25005,
-  "similarity_threshold": 0.99999,
-  "tail_cap": null,
-  "target_structures": 100,
-  "u_min_eV_A": 6.730613322,
-  "u_min_method": "95th percentile of post-equilibration committee uncertainty"
-}\n
+  "calibration_basis": "M0 final test MAE-F logs used for D1 sampling",
+  "aggregation": {
+    "rule": "arithmetic_mean_of_ten_model_level_final_test_MAE-F",
+    "formula": "U_min_eV_per_A = mean(final_test_MAE-F_meV_per_A for train-0..train-9) / 1000",
+    "input_unit": "meV/A",
+    "output_unit": "eV/A",
+    "md_pool_percentile_used": false
+  },
+  "model_records": [
+    {
+      "fold": 0,
+      "log_path": "W-potential/model_versions/M0_from_D0/train-committee/train-0/log",
+      "final_test_mae_f_meV_per_A": 57.75
+    },
+    {
+      "fold": 1,
+      "log_path": "W-potential/model_versions/M0_from_D0/train-committee/train-1/log",
+      "final_test_mae_f_meV_per_A": 66.29
+    },
+    {
+      "fold": 2,
+      "log_path": "W-potential/model_versions/M0_from_D0/train-committee/train-2/log",
+      "final_test_mae_f_meV_per_A": 75.75
+    },
+    {
+      "fold": 3,
+      "log_path": "W-potential/model_versions/M0_from_D0/train-committee/train-3/log",
+      "final_test_mae_f_meV_per_A": 58.96
+    },
+    {
+      "fold": 4,
+      "log_path": "W-potential/model_versions/M0_from_D0/train-committee/train-4/log",
+      "final_test_mae_f_meV_per_A": 57.85
+    },
+    {
+      "fold": 5,
+      "log_path": "W-potential/model_versions/M0_from_D0/train-committee/train-5/log",
+      "final_test_mae_f_meV_per_A": 60.63
+    },
+    {
+      "fold": 6,
+      "log_path": "W-potential/model_versions/M0_from_D0/train-committee/train-6/log",
+      "final_test_mae_f_meV_per_A": 63.29
+    },
+    {
+      "fold": 7,
+      "log_path": "W-potential/model_versions/M0_from_D0/train-committee/train-7/log",
+      "final_test_mae_f_meV_per_A": 68.87
+    },
+    {
+      "fold": 8,
+      "log_path": "W-potential/model_versions/M0_from_D0/train-committee/train-8/log",
+      "final_test_mae_f_meV_per_A": 75.08
+    },
+    {
+      "fold": 9,
+      "log_path": "W-potential/model_versions/M0_from_D0/train-committee/train-9/log",
+      "final_test_mae_f_meV_per_A": 58.41
+    }
+  ],
+  "mean_final_test_mae_f_meV_per_A": 64.288,
+  "u_min_eV_per_A": 0.064288,
+  "all_frames_csv": "W-potential/01-nvt-round-1/uncertainty_all_frames.csv",
+  "all_frame_count": 25005,
+  "production_frame_count": 22505,
+  "u_ge_u_min_candidate_count_before_CUR": 22505,
+  "u_ge_u_min_candidate_counts_by_source_before_CUR": {
+    "scale-0p9": 4501,
+    "scale-0p95": 4501,
+    "scale-1": 4501,
+    "scale-1p05": 4501,
+    "scale-1p1": 4501
+  },
+  "selection_configuration": {
+    "target": 100,
+    "r_c": 6.0,
+    "n_max": 5,
+    "l_max": 6,
+    "similarity_threshold": 0.99999,
+    "candidate_frame_gap": 0,
+    "final_frame_gap": 0,
+    "balance_sources": false,
+    "physical_gates_enabled": false,
+    "tail_cap_enabled": false
+  }
+}

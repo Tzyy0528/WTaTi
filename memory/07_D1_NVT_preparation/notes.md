@@ -32,11 +32,11 @@ All three elements use `--rep 2 2 2` and NVT scale factors
 
 Random seeds are intentionally not fixed for exploratory MD.
 
-## Selection After MD
+## Current D1 Selection Policy
 
 ```text
 all-frame committee scoring
--> calibrated absolute-U lower cutoff
+-> log-derived absolute-U lower cutoff
 -> current.db-projected CUR
 -> Protocol-A DFT labels
 ```
@@ -45,9 +45,12 @@ Run `src/stratified_uncertainty_selection.py --score-only` for the first
 step. It writes the all-frame CSV and equilibration-discard flags without
 creating percentile-bin POSCAR candidates or candidate summary files.
 
-The DFT budget and `U_min` are calibrated from the element-local production
-pool. Source quotas, frame gaps, physical-risk thresholds, and tail caps are
-not active selection constraints.
+For a given element, read the final right-hand (test) `MAE-F` value from each
+of the ten M0 logs for the committee actually used in D1 MD. Convert the
+explicitly approved aggregate from meV/A to eV/A and use that value as
+`U_min`. A percentile of the MD pool is not a valid calibration rule.
+Source quotas, frame gaps, physical-risk thresholds, and tail caps are not
+active selection constraints unless separately approved.
 
 ## Execution Rule
 
@@ -74,36 +77,26 @@ The runs use protected, element-local output roots. Their exact per-source
 commands are written under `<X>-potential/01-nvt-round-1/md/scale-*/command.sh`.
 Do not resubmit into these directories.
 
-## Completed Scoring, Calibration, and CUR Selection
+## Completed Scoring and Revoked Historical Selection
 
-| Element | Score job | CUR job | `U_min` (eV/A) | Candidate pool | CUR selected |
-|---|---:|---:|---:|---:|---:|
-| W | 13011 | 13017 | 6.730613322 | 1,126 | 100 |
-| Ta | 13012 | 13018 | 3.496426176 | 1,126 | 100 |
-| Ti | 13013 | 13019 | 5.933101487 | 1,126 | 100 |
+Each scoring job evaluated all 25,005 frames with its own ten-model M0
+committee. It marked the first 500 frames of each scale source as
+equilibration, leaving 22,505 production frames.
 
-All six jobs completed with exit code 0. Each scoring job evaluated all 25,005
-frames with its own ten-model M0 committee. It marked the first 500 frames of
-each scale source as equilibration, leaving 22,505 production frames.
+The historical CUR jobs 13017--13019 used post-equilibration pool P95
+cutoffs. That selection is invalid under the current rule and must not be
+used. Its calibration JSON, CUR files, DFT labels, successors, M1/E1 outputs,
+and D2 outputs are deleted during the D1 restart. The retained inputs are the
+element-local MD trajectories and `uncertainty_all_frames.csv` files.
 
-For each element, `U_min` is the 95th percentile of the post-equilibration
-committee-uncertainty distribution. This is an element-local absolute cutoff,
-not a percentile-bin selection: every frame at or above the recorded numeric
-cutoff formed the CUR candidate pool. The cutoff, source counts, and descriptor
-parameters are recorded in `<X>-potential/01-nvt-round-1/uncertainty_calibration.json`.
+## D1 Restart Cleanup
 
-CUR used `target=100`, `r_c=6.0`, `n_max=5`, `l_max=6`, similarity threshold
-`0.99999`, no source balancing, no frame gaps, and no tail cap. Final source
-counts were:
+The user-authorized cleanup completed on 2026-07-25. Before copying the D0
+snapshots, the three `current.db` files contained 200 rows; each D0 snapshot
+contained 100 rows. The restored `current.db` files each contain 100 rows and
+have byte-identical SHA-256 hashes to their respective D0 snapshot.
 
-| Element | `scale-0p9` | `scale-0p95` | `scale-1` | `scale-1p05` | `scale-1p1` |
-|---|---:|---:|---:|---:|---:|
-| W | 2 | 1 | 2 | 8 | 87 |
-| Ta | 28 | 6 | 3 | 10 | 53 |
-| Ti | 43 | 8 | 1 | 10 | 38 |
-
-The protected CUR roots contain candidate and selected POSCARs plus
-`selection_summary.csv`, `cur_selected_distribution.csv`, and
-`selection_parameters.txt`. Validation confirmed 1,126 finite unary
-16-atom candidates and 100 finite, unique selected structures for every
-element; each `current.db` remains unchanged at 100 unary rows.
+Removed per element: the historical CUR root and calibration JSON, D1 DFT and
+labeled DB files, D1 `updated.db`, M1, E1_M1, and the complete D2 root.
+Removed memory records 08 through 15. D0, M0, E0, D1 MD trajectories, and D1
+all-frame scoring CSVs remain intact.

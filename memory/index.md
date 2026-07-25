@@ -1,43 +1,44 @@
 # Memory Index
 
 ## Current State
-Three isolated unary workflows are at the completed baseline `D0 -> M0 -> E0` stage:
+The independent W, Ta, and Ti workflows completed replacement `D1 -> M1 ->
+E1`. Every element-local `current.db` is a validated 200-row D1 successor:
+100 preserved D0 rows followed by 100 labels from only its own D1 selection.
 
-| Element | D0 / M0 state | E0 selected model | Phase-aligned EOS MAE / RMSE (meV/atom) |
-|---|---|---|---:|
-| W | 100 D0 rows; 10-fold committee complete | `train-4/4.jnn` | 3.592 / 6.741 |
-| Ta | 100 D0 rows; 10-fold committee complete | `train-9/9.jnn` | 6.254 / 8.832 |
-| Ti | 100 D0 rows; 10-fold committee complete | `train-3/3.jnn` | 3.288 / 6.021 |
-
-The fixed EOS evaluations are validation-only and are located at:
+The fixed validation-only E0 references remain at:
 
 - `results/W_eos_benchmark/evaluations/E0_M0/`
 - `results/Ta_eos_benchmark/evaluations/E0_M0/`
 - `results/Ti_eos_benchmark/evaluations/E0_M0/`
 
 ## Active Gate / Blocker
-E0 is complete as the fixed M0 baseline. D1 high-temperature NVT sampling
-completed and passed output validation independently for W (job 13005), Ta
-(job 13006), and Ti (job 13007), all with exit code 0:0. Independent
-all-frame scoring and absolute-U projected-CUR selection are complete: W, Ta,
-and Ti each have 100 validated selected structures. Element-local Protocol-A
-DFT labeling completed successfully for W (job 13025), Ta (job 13026), and Ti
-(job 13027): each produced a validated 100-row label DB. Each label DB has
-now been merged only with its own D0 database, and all three validated
-200-row D1 successors have been published as the corresponding element-local
-`current.db`. The D0 snapshots and successor `updated.db` files are preserved.
-The prior 1000-epoch M1 committee artifacts were removed with explicit user
-approval. Replacement 5000-epoch M1 training has been submitted independently:
-W job 13101, Ta job 13102, and Ti job 13103. All were PENDING at the one
-immediate post-submission status check. The training policy for M1 and later
-committees is now 5000 epochs; M0 remains the historical 1000-epoch baseline.
-`research-plan.md` is the authoritative W/Ta/Ti plan.
+E0 is the fixed M0 baseline. D1 high-temperature NVT sampling completed and
+passed validation independently for W (job 13005), Ta (job 13006), and Ti
+(job 13007); all-frame scoring jobs 13011--13013 also completed. Their D1
+MD trajectories and all-frame scoring CSVs are retained.
+
+The historical D1 projected-CUR selection used a production-pool P95 cutoff.
+The user revoked that policy and explicitly authorized removal of its CUR
+outputs, labels, D1 successors, M1, E1, D2, and later memory. Replacement
+D1 CUR completed successfully: each element has 100 validated selected
+structures. Protocol-A DFT jobs W 13133, Ta 13134, and Ti 13135 completed
+successfully. Each new D1 label DB contains 100 finite unary 16-atom labels.
+They were merged only with their corresponding D0 base, and all D1
+`current.db` files were published after validation. M1 jobs W 13138, Ta
+13139, and Ti 13140 completed successfully and all three committees passed
+model, fold-coverage, and finite-diagnostic validation. Fixed-reference E1
+is complete: W and Ti regressed in raw and phase-aligned EOS errors; Ta
+improved phase-aligned shape but regressed in raw cross-phase energy.
 
 ## Standing Constraints
 - Keep W, Ta, and Ti data, databases, models, candidate pools, and EOS references independent.
 - Do not add EOS structures or labels to any `current.db`.
-- Use staged SLURM execution and the approved absolute-U then
-  current.db-projected-CUR selection policy for any future D1 work.
+- Use staged SLURM execution and absolute-U then current.db-projected-CUR
+  selection for the replacement D1 work.
+- Derive each `U_min` as the arithmetic mean of the final test `MAE-F`
+  values in the ten models used for that element and round, converted to
+  eV/A; never use a percentile-only MD-pool cutoff or copy a threshold
+  between elements/model versions.
 - Preserve existing generated outputs unless explicit overwrite or deletion approval is given.
 
 ## Ready Assets
@@ -47,12 +48,13 @@ committees is now 5000 epochs; M0 remains the historical 1000-epoch baseline.
 - Stage records with W/Ta/Ti subsections: `03_eos_preparation/`,
   `04_D0_generation/`, `05_M0_training/`, and `06_E0_evaluation/`.
 - D1 preparation: `07_D1_NVT_preparation/`.
-- D1 Protocol-A DFT labeling: `08_D1_DFT_labeling/`.
-- D1 merge and prior 1000-epoch M1 submission: `09_D1_merge_M1_training/`.
-- M1 5000-epoch replacement: `10_M1_5000_epoch_retraining/`.
+- D1 restart and reselection: `08_D1_reselection/`.
+- D1 Protocol-A labeling: `09_D1_DFT_labeling/`.
+- D1 merge and M1 training: `10_D1_merge_M1_training/`.
+- M1 fixed-reference E1 validation: `11_M1_validation_E1_evaluation/`.
 
 ## Immediate Next Step
-When requested after jobs 13101/13102/13103 complete, validate their
-independent ten-member M1 committees from the published 200-row element-local
-D1 `current.db` files. Do not start E1 EOS evaluation until all committees
-pass output, fold-coverage, and finite-diagnostic checks.
+The approved arithmetic-mean `U_min` values are W `0.064288`, Ta `0.047964`,
+and Ti `0.048319` eV/A. Review the E1-versus-E0 regression/improvement
+evidence and obtain a scientific continue/stop decision before D2. E1 is
+validation-only and did not change `current.db`.

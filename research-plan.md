@@ -500,17 +500,34 @@ equilibration-discard flag
 
 ### 10.2 Calibrate the Current Pool
 
-Use the saved production-frame CSV to determine and record:
+Use the current sampling committee's final logged test-force errors together
+with the saved production-frame CSV to determine and record:
 
 ```text
-U_min                 absolute uncertainty lower cutoff
+U_min                 committee-log-derived force-error threshold
 N_DFT                 final label budget
 CUR parameters        r_c, n_max, l_max, similarity policy
 ```
 
-Committee uncertainty is a coverage signal, not a transferable DFT error
-threshold. It is recalibrated from the current element/model/pool rather than
-reused across elements or rounds.
+For every JNN used in the MD committee, read the final `MAE-F` test value
+(the right-hand value in the logged `MAE-F: train | test` pair). Use the
+arithmetic mean of these ten model-level test errors, convert it from meV/A
+to eV/A, and use it directly as `U_min`, because `U` is also in eV/A. Change
+this aggregation only with explicit approval. Record all model-log paths, the
+ten final test `MAE-F` values, the aggregation rule, and the resulting numeric
+`U_min`.
+
+Do not determine `U_min` from an unlabeled MD-pool percentile and do not
+substitute an additional DFT calibration-set procedure for this rule. The
+arithmetic-mean force-error aggregate is recalculated independently for the
+committee used in every element and every round; it is never copied from
+another element or model version.
+
+Historical exception: the original D1 selection used the production-pool U
+P95 rule. It was explicitly revoked and its selection, labels, successors,
+and downstream M1/E1/D2 assets were removed. The replacement D1 selection
+uses the committee-log force-error threshold rule above; it must not use the
+historical P95 calibration.
 
 ### 10.3 Absolute-U Projected CUR
 

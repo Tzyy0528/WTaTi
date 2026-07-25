@@ -11,9 +11,9 @@ sampling from their completed M0 committees.
 - [x] Submit independent W, Ta, and Ti NVT sweeps through SLURM.
 - [x] Validate all element-local trajectories and MD summaries after completion.
 - [x] Score every production frame with the respective M0 committee under SLURM.
-- [x] Calibrate element-local `U_min` and apply current.db-projected CUR
-  with the approved 100-structure budget per element.
-- [ ] Label the selected structures with Protocol-A DFT.
+- [x] Identify the historical percentile-derived selection as revoked.
+- [ ] Redo D1 selection using a log-derived `U_min` after the committee
+  aggregation rule is explicitly approved.
 
 ## Fixed D1 NVT Configuration
 
@@ -47,7 +47,18 @@ Ti: 2750.65 K
 ## Status
 Jobs 13005 (W), 13006 (Ta), and 13007 (Ti) completed successfully with exit
 code 0 on 2026-07-24. Each of the 15 scale sources passed trajectory and
-summary validation. All-frame scoring jobs 13011--13013 and projected-CUR
-jobs 13017--13019 also completed with exit code 0. Each element now has a
-validated, independent 100-structure CUR selection. Protocol-A DFT labeling
-is the next stage.
+summary validation. All-frame scoring jobs 13011--13013 also completed with
+exit code 0 and their all-frame CSVs are retained.
+
+The projected-CUR jobs 13017--13019 used a production-pool P95 `U_min`.
+That policy has been explicitly revoked. The selections, labels, M1/E1, and
+D2 successors were removed, and `current.db` for every element was restored
+from its exact 100-row D0 snapshot. The replacement D1 selection must use the
+final test `MAE-F` values in the M0 logs, aggregated only by a user-approved
+rule. No DFT labeling may begin before the replacement selection is validated
+and approved.
+
+## Errors Encountered
+- `python3` could not import ASE during the pre-cleanup DB-count check.
+  Resolved: standard-library SQLite `systems` table counts and SHA-256 byte
+  hashes verified the D0-to-`current.db` snapshot copies.

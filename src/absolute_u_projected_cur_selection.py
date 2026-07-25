@@ -38,6 +38,7 @@ CANDIDATE_FIELDS = (
     "instant_pressure_gpa",
     "natoms",
     "min_distance_A",
+    "physical_gate_status",
     "candidate_rank_source",
     "candidate_file",
     "final_selected",
@@ -49,6 +50,22 @@ CANDIDATE_FIELDS = (
     "residual_norm",
     "max_similarity_selected",
     "max_similarity_base",
+)
+
+PHYSICAL_GATE_REJECTION_FIELDS = (
+    "source_type",
+    "source_value",
+    "scale_factor",
+    "trajectory",
+    "trajectory_path",
+    "frame",
+    "uncertainty",
+    "volume_per_atom",
+    "max_force",
+    "max_force_model0",
+    "candidate_rank_source",
+    "min_distance_A",
+    "physical_gate_reasons",
 )
 
 
@@ -78,13 +95,33 @@ def select_spaced_candidates(
     all_frame_rows: list[dict],
     u_min: float,
     min_frame_gap: int,
-) -> dict[str, list[dict]]:
+    min_volume_per_atom: float | None,
+    max_volume_per_atom: float | None,
+    max_force: float | None,
+) -> tuple[dict[str, list[dict]], list[dict]]:
     by_source: defaultdict[str, list[dict]] = defaultdict(list)
+    gate_rejections: list[dict] = []
     for row in all_frame_rows:
         if row.get("discarded_equilibration", "").strip().lower() != "false":
             continue
         uncertainty = finite_float(row, "uncertainty")
         if uncertainty < u_min:
+            continue
+        reasons = []
+        volume_per_atom = finite_float(row, "volume_per_atom")
+        force = finite_float(row, "max_force")
+        if min_volume_per_atom is not None and volume_per_atom < min_volume_per_atom:
+            reasons.append(f"volume_per_atom<{min_volume_per_atom:g}")
+        if max_volume_per_atom is not None and volume_per_atom > max_volume_per_atom:
+            reasons.append(f"volume_per_atom>{max_volume_per_atom:g}")
+        if max_force is not None and force > max_force:
+            reasons.append(f"max_force>{max_force:g}")
+        if reasons:
+            rejected = dict(row)
+            rejected["candidate_rank_source"] = ""
+            rejected["min_distance_A"] = ""
+            rejected["physical_gate_reasons"] = ";".join(reasons)
+            gate_rejections.append(rejected)
             continue
         source = row.get("trajectory", "")
         if not source:
@@ -104,7 +141,7 @@ def select_spaced_candidates(
         for rank, row in enumerate(keep, start=1):
             row["candidate_rank_source"] = rank
         selected[source] = keep
-    return selected
+    return selected, gate_rejections
 
 
 def minimum_distance(atoms) -> float:
@@ -117,9 +154,11 @@ def minimum_distance(atoms) -> float:
 def write_candidate_poscars(
     selected_by_source: dict[str, list[dict]],
     candidate_dir: Path,
-) -> list[dict]:
+    min_distance_limit: float | None,
+) -> tuple[list[dict], list[dict]]:
     candidate_dir.mkdir()
     rows: list[dict] = []
+    gate_rejections: list[dict] = []
 
     for source in sorted(selected_by_source, key=source_sort_key):
         records = selected_by_source[source]
@@ -147,9 +186,18 @@ def write_candidate_poscars(
 
             positions = wrap_positions(atoms.get_positions(), atoms.get_cell(), atoms.get_pbc())
             atoms.set_positions(positions)
-            min_distance = minimum_distance(atoms)
-            if not math.isfinite(min_distance) or min_distance <= 0.0:
+            minimum_distance_value = minimum_distance(atoms)
+            if not math.isfinite(minimum_distance_value) or minimum_distance_value <= 0.0:
                 raise ValueError(f"Invalid minimum distance for {source} frame {frame}")
+            if (
+                min_distance_limit is not None
+                and minimum_distance_value < min_distance_limit
+            ):
+                rejected = dict(row)
+                rejected["min_distance_A"] = minimum_distance_value
+                rejected["physical_gate_reasons"] = f"min_distance_A<{min_distance_limit:g}"
+                gate_rejections.append(rejected)
+                continue
 
             uncertainty = finite_float(row, "uncertainty")
             candidate_file = (
@@ -170,7 +218,8 @@ def write_candidate_poscars(
                 "max_force_model0": finite_float(row, "max_force_model0"),
                 "instant_pressure_gpa": row.get("instant_pressure_gpa", ""),
                 "natoms": len(atoms),
-                "min_distance_A": min_distance,
+                "min_distance_A": minimum_distance_value,
+                "physical_gate_status": "passed",
                 "candidate_rank_source": row["candidate_rank_source"],
                 "candidate_file": candidate_file,
                 "final_selected": "False",
@@ -186,11 +235,19 @@ def write_candidate_poscars(
             rows.append(result)
             written_frames.add(frame)
 
-        missing = sorted(set(by_frame) - written_frames)
-        if missing:
-            raise RuntimeError(f"Failed to write requested {source} frames: {missing[:10]}")
+        rejected_frames = {
+            int(row["frame"])
+            for row in gate_rejections
+            if row.get("trajectory") == source
+        }
+        unresolved = sorted(set(by_frame) - written_frames - rejected_frames)
+        if unresolved:
+            raise RuntimeError(f"Failed to write requested {source} frames: {unresolved[:10]}")
 
-    return sorted(rows, key=lambda row: (source_sort_key(row["trajectory"]), int(row["frame"])))
+    return (
+        sorted(rows, key=lambda row: (source_sort_key(row["trajectory"]), int(row["frame"]))),
+        gate_rejections,
+    )
 
 
 class SourceTailCurSelector:
@@ -424,9 +481,34 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--candidate-frame-gap", type=int, default=0)
     parser.add_argument("--target", type=int, default=100)
     parser.add_argument("--balance-sources", action="store_true")
+    parser.add_argument(
+        "--require-all-sources",
+        action="store_true",
+        help="Require at least one physical-gate-valid candidate from every production source.",
+    )
     parser.add_argument("--tail-threshold", type=float)
     parser.add_argument("--tail-max", type=int)
     parser.add_argument("--final-frame-gap", type=int, default=0)
+    parser.add_argument(
+        "--min-volume-per-atom",
+        type=float,
+        help="Reject candidate frames below this physical volume gate in A^3/atom.",
+    )
+    parser.add_argument(
+        "--max-volume-per-atom",
+        type=float,
+        help="Reject candidate frames above this physical volume gate in A^3/atom.",
+    )
+    parser.add_argument(
+        "--max-force",
+        type=float,
+        help="Reject candidate frames above this committee-mean force gate in eV/A.",
+    )
+    parser.add_argument(
+        "--min-distance",
+        type=float,
+        help="Reject candidate frames below this minimum pair-distance gate in A.",
+    )
     parser.add_argument("--r-c", type=float, default=6.0)
     parser.add_argument("--n-max", type=int, default=5)
     parser.add_argument("--l-max", type=int, default=6)
@@ -451,6 +533,21 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("Descriptor parameters must be positive")
     if not args.no_similarity_threshold and not 0.0 <= args.similarity_threshold <= 1.0:
         raise ValueError("--similarity-threshold must be in [0, 1]")
+    for name in (
+        "min_volume_per_atom",
+        "max_volume_per_atom",
+        "max_force",
+        "min_distance",
+    ):
+        value = getattr(args, name)
+        if value is not None and (not math.isfinite(value) or value <= 0.0):
+            raise ValueError(f"--{name.replace('_', '-')} must be finite and positive")
+    if (
+        args.min_volume_per_atom is not None
+        and args.max_volume_per_atom is not None
+        and args.min_volume_per_atom >= args.max_volume_per_atom
+    ):
+        raise ValueError("--min-volume-per-atom must be below --max-volume-per-atom")
 
 
 def main() -> None:
@@ -468,37 +565,19 @@ def main() -> None:
         raise FileNotFoundError(f"Missing base database: {base_path}")
 
     all_rows = read_csv(all_frames_path)
-    selected_by_source = select_spaced_candidates(
-        all_rows, args.u_min, args.candidate_frame_gap
-    )
-    sources = sorted(selected_by_source, key=source_sort_key)
-    if args.balance_sources and args.target < len(sources):
-        raise ValueError(
-            f"Target {args.target} must be at least the source count {len(sources)}"
-        )
-    if args.balance_sources:
-        source_min = args.target // len(sources)
-        source_max = int(math.ceil(args.target / len(sources)))
-    else:
-        source_min = 0
-        source_max = args.target
-    candidate_count = sum(len(rows) for rows in selected_by_source.values())
-    if candidate_count < args.target:
-        raise ValueError(f"Only {candidate_count} candidates for target {args.target}")
-    print(
-        f"Candidates: sources={len(sources)} count={candidate_count} "
-        f"u_min={args.u_min:g} candidate_gap={args.candidate_frame_gap}",
-        flush=True,
-    )
-    if args.balance_sources:
-        print(
-            f"Source quotas: min={source_min} max={source_max} target={args.target}",
-            flush=True,
-        )
-    print(
-        "Candidate counts by source: "
-        + str({source: len(selected_by_source[source]) for source in sources}),
-        flush=True,
+    expected_sources = {
+        row.get("trajectory", "")
+        for row in all_rows
+        if row.get("discarded_equilibration", "").strip().lower() == "false"
+    }
+    expected_sources.discard("")
+    selected_by_source, physical_gate_rejections = select_spaced_candidates(
+        all_rows,
+        args.u_min,
+        args.candidate_frame_gap,
+        args.min_volume_per_atom,
+        args.max_volume_per_atom,
+        args.max_force,
     )
 
     tmp_root = output_root.parent / f".{output_root.name}.tmp-{os.getpid()}"
@@ -508,9 +587,51 @@ def main() -> None:
         tmp_root.mkdir(parents=True)
         u_tag = f"{args.u_min:.6g}".replace("-", "m").replace(".", "p")
         candidate_dir = tmp_root / f"u{u_tag}-gap{args.candidate_frame_gap}-candidates-poscar"
-        candidate_rows = write_candidate_poscars(selected_by_source, candidate_dir)
-        if len(candidate_rows) != candidate_count:
-            raise RuntimeError("Candidate POSCAR/metadata count mismatch")
+        candidate_rows, distance_rejections = write_candidate_poscars(
+            selected_by_source, candidate_dir, args.min_distance
+        )
+        physical_gate_rejections.extend(distance_rejections)
+        candidate_count = len(candidate_rows)
+        sources = sorted({row["trajectory"] for row in candidate_rows}, key=source_sort_key)
+        if args.require_all_sources:
+            missing_sources = sorted(expected_sources - set(sources), key=source_sort_key)
+            if missing_sources:
+                raise RuntimeError(
+                    "Physical/U gates removed all candidates for required sources: "
+                    + ", ".join(missing_sources)
+                )
+        if args.balance_sources and args.target < len(sources):
+            raise ValueError(
+                f"Target {args.target} must be at least the source count {len(sources)}"
+            )
+        if args.balance_sources:
+            source_min = args.target // len(sources)
+            source_max = int(math.ceil(args.target / len(sources)))
+        else:
+            source_min = 0
+            source_max = args.target
+        if candidate_count < args.target:
+            raise ValueError(f"Only {candidate_count} candidates for target {args.target}")
+        print(
+            f"Candidates: sources={len(sources)} count={candidate_count} "
+            f"u_min={args.u_min:g} candidate_gap={args.candidate_frame_gap}",
+            flush=True,
+        )
+        if args.balance_sources:
+            print(
+                f"Source quotas: min={source_min} max={source_max} target={args.target}",
+                flush=True,
+            )
+        print(
+            "Candidate counts by source: "
+            + str({source: sum(row["trajectory"] == source for row in candidate_rows) for source in sources}),
+            flush=True,
+        )
+        write_csv(
+            tmp_root / "physical_gate_rejections.csv",
+            physical_gate_rejections,
+            PHYSICAL_GATE_REJECTION_FIELDS,
+        )
 
         print("Constructing feature matrix for candidates...", flush=True)
         structures, labels = read_structures(candidate_dir)
@@ -568,6 +689,7 @@ def main() -> None:
                     f"target={args.target}",
                     f"source_count={len(sources)}",
                     f"balance_sources={args.balance_sources}",
+                    f"require_all_sources={args.require_all_sources}",
                     f"source_min={source_min}",
                     f"source_max={source_max}",
                     f"tail_threshold={args.tail_threshold}",
@@ -577,6 +699,11 @@ def main() -> None:
                     f"n_max={args.n_max}",
                     f"l_max={args.l_max}",
                     f"similarity_threshold={similarity_threshold}",
+                    f"min_volume_per_atom={args.min_volume_per_atom}",
+                    f"max_volume_per_atom={args.max_volume_per_atom}",
+                    f"max_force={args.max_force}",
+                    f"min_distance={args.min_distance}",
+                    f"physical_gate_rejection_count={len(physical_gate_rejections)}",
                     f"base={base_path}",
                     f"all_frames={all_frames_path}",
                 ]

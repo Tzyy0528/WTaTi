@@ -79,7 +79,13 @@ First run full-committee all-frame scoring with
 `uncertainty_all_frames.csv`. Pass `--score-only` so percentile-bin candidate
 files are not created. Submit this through
 `scripts/slurm/run_uncertainty_scoring.slurm`. Determine the current model's
-`U_min`, total target, and CUR descriptor parameters before submitting the
+`U_min` from the final test `MAE-F` values in logs of all models used for
+sampling. Use their arithmetic mean, converted from meV/A to eV/A; do not set
+it from an MD-pool percentile. Recalculate it independently for every element
+and round. Record all ten values, the aggregation rule, model paths, and
+numeric result. Then determine the total
+target and CUR descriptor
+parameters before submitting the
 following CUR command through `scripts/slurm/run_absolute_u_projected_cur.slurm`:
 
 ```bash
@@ -91,14 +97,29 @@ sbatch --output <X>-potential/01-nvt-round-1/slurm_logs/cur-%j.out \
   --output-root <X>-potential/01-nvt-round-1/absolute-u-projected-cur \
   --u-min <calibrated-U-min> \
   --target <approved-DFT-budget> \
+  --candidate-frame-gap <approved-source-gap> \
+  --final-frame-gap <approved-final-gap> \
+  --tail-threshold <approved-tail-U> \
+  --tail-max <approved-tail-count> \
+  --min-volume-per-atom <approved-min-A3-per-atom> \
+  --max-volume-per-atom <approved-max-A3-per-atom> \
+  --max-force <approved-max-eV-per-A> \
+  --min-distance <approved-min-A> \
   --r-c 6.0 \
   --n-max 5 \
   --l-max 6 \
   --similarity-threshold 0.99999
 ```
 
-The output is protected. Validate its U range, descriptor/CUR records, finite
-geometry, and provenance before DFT.
+The output is protected. The selector writes physical-gate rejections,
+candidate/selected POSCARs, source/tail distributions, and parameter
+provenance. Validate its U range, physical-gate records, descriptor/CUR
+records, finite geometry, source allocation, and tail cap before DFT.
+
+`--balance-sources` imposes an equal quota across all surviving sources. It is
+not a default source constraint and must be used only with an explicitly
+approved source-quota policy. Source-wise candidate/final frame gaps alone do
+not require equal source counts.
 
 ## 5. DFT, Dk, Mk, and Ek
 
