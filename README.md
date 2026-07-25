@@ -60,8 +60,9 @@ element/phase.
    smearing, spin, and whether SOC is included.
 5. Audit or replace the W/Ta/Ti atomic reference energies in
    `src/dbselectandtrain.py` so they match Protocol A.
-6. Set element-specific seed, MD, NPT, physical-gate, and selection calibration
-   parameters. `src/temperature_table.py` is intentionally unconfigured.
+6. Use the high-temperature W/Ta/Ti targets in `src/temperature_table.py`,
+   set the MD/NPT parameters, and calibrate the absolute-U cutoff and DFT
+   budget.
 
 ## Active-Learning Workflow
 
@@ -69,8 +70,7 @@ element/phase.
 input structures + frozen Protocol A/B
 -> D0 -> M0 -> fixed EOS E0
 -> MD candidate pool + all-frame scoring
--> calibrated absolute-U cutoff + source decorrelation
--> physical gates + projected source-constrained CUR + tail cap
+-> calibrated absolute-U cutoff + current.db-projected CUR
 -> element-local DFT labels -> Dk -> Mk -> fixed EOS Ek
 ```
 

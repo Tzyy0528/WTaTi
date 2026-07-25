@@ -1,0 +1,28 @@
+{
+  "all_frame_scoring_job": 13013,
+  "balance_sources": false,
+  "candidate_count": 1126,
+  "candidate_counts_by_source": {
+    "scale-0p9": 886,
+    "scale-0p95": 108,
+    "scale-1": 18,
+    "scale-1p05": 33,
+    "scale-1p1": 81
+  },
+  "candidate_frame_gap": 0,
+  "committee": "Ti-potential/model_versions/M0_from_D0/train-committee/train-*/*.jnn",
+  "element": "Ti",
+  "equilibration_discarded_per_source": 500,
+  "final_frame_gap": 0,
+  "l_max": 6,
+  "n_max": 5,
+  "production_frames": 22505,
+  "r_c_A": 6.0,
+  "round": "01-nvt-round-1",
+  "scored_frames": 25005,
+  "similarity_threshold": 0.99999,
+  "tail_cap": null,
+  "target_structures": 100,
+  "u_min_eV_A": 5.933101487,
+  "u_min_method": "95th percentile of post-equilibration committee uncertainty"
+}\n

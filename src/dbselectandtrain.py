@@ -158,7 +158,7 @@ def copy_ase_db_rows_fast(input_db, output_db, ids):
 
 
 def db_select_and_train(input_db, out_dir, number=10, seed=42, max_parallel=5,
-                        epochs=1000):
+                        epochs=5000):
     """创建训练/测试 folds 并启动 committee 模型训练。"""
     if epochs <= 0:
         raise ValueError("epochs must be positive")

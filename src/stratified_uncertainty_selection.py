@@ -382,7 +382,7 @@ def parse_args() -> argparse.Namespace:
         help="Trajectory source mode: NPT pressure labels, NVT scale labels, or auto-discover md/* trajectories.",
     )
     parser.add_argument("--pressures", default="1,5,10,20,30,40,50")
-    parser.add_argument("--scales", default="0.85,0.9,0.95,1.0,1.05,1.1")
+    parser.add_argument("--scales", default="0.9,0.95,1.0,1.05,1.1")
     parser.add_argument(
         "--source-labels",
         default=None,
@@ -393,6 +393,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--all-frames-csv", default=None)
     parser.add_argument("--selection-csv", default=None)
     parser.add_argument("--bin-summary-csv", default=None)
+    parser.add_argument(
+        "--score-only",
+        action="store_true",
+        help=(
+            "Write only the all-frame uncertainty CSV. Do not create "
+            "percentile-bin candidates or their summary files."
+        ),
+    )
     parser.add_argument("--per-bin", type=int, default=20)
     parser.add_argument("--min-frame-gap", type=int, default=50)
     parser.add_argument(
@@ -422,14 +430,20 @@ def main() -> None:
     selection_csv = Path(args.selection_csv) if args.selection_csv else round_dir / "selection_summary.csv"
     bin_summary_csv = Path(args.bin_summary_csv) if args.bin_summary_csv else round_dir / "uncertainty_bin_summary.csv"
 
-    if output_dir.exists():
-        if not args.overwrite:
-            raise FileExistsError(f"Output directory exists; use --overwrite: {output_dir}")
-        shutil.rmtree(output_dir)
-    output_dir.mkdir(parents=True)
-    for path in (all_frames_csv, selection_csv, bin_summary_csv):
+    output_paths = (all_frames_csv,) if args.score_only else (
+        all_frames_csv,
+        selection_csv,
+        bin_summary_csv,
+    )
+    for path in output_paths:
         if path.exists() and not args.overwrite:
             raise FileExistsError(f"Output file exists; use --overwrite: {path}")
+    if not args.score_only:
+        if output_dir.exists():
+            if not args.overwrite:
+                raise FileExistsError(f"Output directory exists; use --overwrite: {output_dir}")
+            shutil.rmtree(output_dir)
+        output_dir.mkdir(parents=True)
 
     pressures = parse_values(args.pressures)
     scales = parse_values(args.scales)
@@ -463,24 +477,29 @@ def main() -> None:
 
     for source_index, spec in enumerate(trajectories):
         records = score_trajectory(spec, calculators, args.progress_interval)
-        selected, summary_rows = select_records_for_trajectory(
-            records,
-            args.per_bin,
-            args.min_frame_gap,
-            args.spacing_scope,
-            args.seed,
-            source_index,
-            args.equilibration_fraction,
-        )
-        next_index = write_selected_poscars(spec, selected, output_dir, next_index)
         all_records.extend(records)
-        selected_records.extend(selected)
-        bin_summary_rows.extend(summary_rows)
-        print(
-            f"selected {spec.label}: candidates={len(selected)} "
-            f"from frames={len(records)}",
-            flush=True,
-        )
+        if not args.score_only:
+            selected, summary_rows = select_records_for_trajectory(
+                records,
+                args.per_bin,
+                args.min_frame_gap,
+                args.spacing_scope,
+                args.seed,
+                source_index,
+                args.equilibration_fraction,
+            )
+            next_index = write_selected_poscars(spec, selected, output_dir, next_index)
+            selected_records.extend(selected)
+            bin_summary_rows.extend(summary_rows)
+            print(
+                f"selected {spec.label}: candidates={len(selected)} "
+                f"from frames={len(records)}",
+                flush=True,
+            )
+        else:
+            n_equil = int(math.floor(len(records) * args.equilibration_fraction))
+            for record in records[:n_equil]:
+                record["discarded_equilibration"] = True
 
     record_fields = [
         "pressure_gpa",
@@ -505,36 +524,39 @@ def main() -> None:
         "final_selected",
     ]
     write_csv(all_frames_csv, all_records, record_fields)
-    write_csv(selection_csv, selected_records, record_fields)
-    write_csv(
-        bin_summary_csv,
-        bin_summary_rows,
-        [
-            "pressure_gpa",
-            "scale_factor",
-            "source_type",
-            "source_value",
-            "trajectory",
-            "uncertainty_bin",
-            "percentile_low",
-            "percentile_high",
-            "available_frames",
-            "requested",
-            "selected",
-            "uncertainty_min",
-            "uncertainty_max",
-            "uncertainty_mean",
-            "equilibration_frames_discarded",
-            "production_frames",
-            "min_frame_gap",
-            "spacing_scope",
-        ],
-    )
-    print(
-        f"done: candidates={len(selected_records)} output_dir={output_dir} "
-        f"selection_csv={selection_csv}",
-        flush=True,
-    )
+    if args.score_only:
+        print(f"done: scored_frames={len(all_records)} all_frames_csv={all_frames_csv}", flush=True)
+    else:
+        write_csv(selection_csv, selected_records, record_fields)
+        write_csv(
+            bin_summary_csv,
+            bin_summary_rows,
+            [
+                "pressure_gpa",
+                "scale_factor",
+                "source_type",
+                "source_value",
+                "trajectory",
+                "uncertainty_bin",
+                "percentile_low",
+                "percentile_high",
+                "available_frames",
+                "requested",
+                "selected",
+                "uncertainty_min",
+                "uncertainty_max",
+                "uncertainty_mean",
+                "equilibration_frames_discarded",
+                "production_frames",
+                "min_frame_gap",
+                "spacing_scope",
+            ],
+        )
+        print(
+            f"done: candidates={len(selected_records)} output_dir={output_dir} "
+            f"selection_csv={selection_csv}",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

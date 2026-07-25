@@ -505,11 +505,11 @@ def parse_args():
 
     parser.add_argument("--committee-size", type=int, default=10)
     parser.add_argument("--train-workers", type=int, default=5)
-    parser.add_argument("--train-epochs", type=int, default=1000)
+    parser.add_argument("--train-epochs", type=int, default=5000)
     parser.add_argument("--max-md-workers", type=int, default=1)
 
     parser.add_argument("--scale-factors", nargs="+", type=float,
-                        default=[0.85, 0.9, 0.95, 1.0, 1.05, 1.1])
+                        default=[0.9, 0.95, 1.0, 1.05, 1.1])
     parser.add_argument("--pressures", nargs="+", type=float,
                         default=[1, 5, 10, 20, 30, 40, 50])
 
@@ -528,7 +528,7 @@ def parse_args():
                         help="Bulk modulus used to derive NPT pfactor")
     parser.add_argument("--pfactor", type=float,
                         help="Optional direct ASE NPT pfactor override")
-    parser.add_argument("--frac-traceless", type=float, default=0.05)
+    parser.add_argument("--frac-traceless", type=float, default=0.0)
 
     parser.add_argument("--u-min", type=float, default=0.3,
                         help="Temporary lower bound for covariance uncertainty; "

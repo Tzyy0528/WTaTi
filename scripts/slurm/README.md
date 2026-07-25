@@ -87,7 +87,7 @@ Generic form:
 sbatch scripts/slurm/run_train_committee.slurm \
   <input.db> \
   <train-committee-dir> \
-  [committee_size=10] [train_workers=5] [epochs=1000]
+  [committee_size=10] [train_workers=5] [epochs=5000]
 ```
 
 `committee_size` must be at least 2 because the current training splitter builds cross-validation folds.
@@ -105,7 +105,7 @@ This means:
 ```text
 10 total committee potentials
 5 potentials trained concurrently
-1000 training epochs by default
+5000 training epochs by default
 8 cores/threads per potential
 40 cores requested in total
 ```

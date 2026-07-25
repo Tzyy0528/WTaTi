@@ -15,7 +15,7 @@
 #     <X>-potential/model_versions/M0_from_D0/train-committee \
 #     <committee-size> <train-workers> <epochs>
 # Arguments:
-#   <input_db> <train_dir> [committee_size=10] [train_workers=5] [epochs=1000]
+#   <input_db> <train_dir> [committee_size=10] [train_workers=5] [epochs=5000]
 #
 # Default resource logic:
 #   - train 10 committee potentials total;
@@ -30,7 +30,7 @@
 set -euo pipefail
 
 usage() {
-    echo "Usage: sbatch $0 <input_db> <train_dir> [committee_size=10] [train_workers=5] [epochs=1000]" >&2
+    echo "Usage: sbatch $0 <input_db> <train_dir> [committee_size=10] [train_workers=5] [epochs=5000]" >&2
 }
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
@@ -50,7 +50,7 @@ INPUT_DB_ARG="$1"
 TRAIN_DIR_ARG="$2"
 COMMITTEE_SIZE="${3:-10}"
 TRAIN_WORKERS="${4:-5}"
-EPOCHS="${5:-1000}"
+EPOCHS="${5:-5000}"
 
 if [[ ! -f "$INPUT_DB_ARG" ]]; then
     echo "Missing input DB: $INPUT_DB_ARG" >&2

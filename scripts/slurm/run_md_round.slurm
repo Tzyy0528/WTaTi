@@ -59,8 +59,8 @@ Usage:
     --jnn-paths <model1.jnn> <model2.jnn> ...
 
 NVT requires an explicit --scale-factors list. NPT requires an explicit
---pressures list and either --bulk-modulus-gpa or --pfactor. All runs require
-an explicit --rep.
+--pressures list. It uses --bulk-modulus-gpa 100.0 unless --pfactor or an
+override is supplied. All runs require an explicit --rep.
 
 Direct execution auto-submits with sbatch -n <number of scales/pressures>.
 If calling sbatch directly, provide -n manually.
@@ -160,9 +160,9 @@ SUMMARY="energy_forces_summary.dat"
 FRICTION="0.02"
 TTIME="75.0"
 PTIME="75.0"
-BULK_MODULUS_GPA=""
+BULK_MODULUS_GPA="100.0"
 PFACTOR=""
-FRAC_TRACELESS="0.05"
+FRAC_TRACELESS="0.0"
 MD_REP=()
 
 while [[ $# -gt 0 ]]; do
@@ -261,10 +261,6 @@ if [[ "$ENSEMBLE" == "nvt" ]]; then
 else
     if [[ ${#PRESSURES[@]} -eq 0 ]]; then
         echo "NPT requires --pressures" >&2
-        exit 2
-    fi
-    if [[ -z "$BULK_MODULUS_GPA" && -z "$PFACTOR" ]]; then
-        echo "NPT requires --bulk-modulus-gpa or --pfactor" >&2
         exit 2
     fi
     VALUES=("${PRESSURES[@]}")

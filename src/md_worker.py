@@ -401,7 +401,7 @@ def parse_args():
                         help="Bulk modulus used to derive NPT pfactor")
     parser.add_argument("--pfactor", type=float,
                         help="Override ASE NPT pfactor")
-    parser.add_argument("--frac-traceless", type=float, default=0.05)
+    parser.add_argument("--frac-traceless", type=float, default=0.0)
     parser.add_argument("--trajectory", default="multi_nnap_md.xyz")
     parser.add_argument("--summary", default="energy_forces_summary.dat")
     args = parser.parse_args()

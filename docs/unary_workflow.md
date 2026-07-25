@@ -21,9 +21,8 @@ structures/<X>_benchmark/<X>-<phase>.poscar
 POTCAR/PBE/<X>/POTCAR
 ```
 
-Record PAW checksum/ENMAX, frozen Protocol A/B, atomic reference energy,
-seed/MD settings, and physical-gate thresholds in a task record. Do not submit
-anything at this step.
+Record PAW checksum/ENMAX, frozen Protocol A/B, atomic reference energy, and
+MD settings in a task record. Do not submit anything at this step.
 
 ## 2. EOS Reference
 
@@ -77,26 +76,29 @@ selection.
 
 First run full-committee all-frame scoring with
 `src/stratified_uncertainty_selection.py` and retain its
-`uncertainty_all_frames.csv`. Determine the current model's `U_min`,
-`U_tail`, `N_tail_max`, gaps, total target, source quota feasibility, and
-physical gates before executing the following skeleton:
+`uncertainty_all_frames.csv`. Pass `--score-only` so percentile-bin candidate
+files are not created. Submit this through
+`scripts/slurm/run_uncertainty_scoring.slurm`. Determine the current model's
+`U_min`, total target, and CUR descriptor parameters before submitting the
+following CUR command through `scripts/slurm/run_absolute_u_projected_cur.slurm`:
 
 ```bash
-python3 src/absolute_u_projected_cur_selection.py \
+sbatch --output <X>-potential/01-nvt-round-1/slurm_logs/cur-%j.out \
+  scripts/slurm/run_absolute_u_projected_cur.slurm \
   --round-dir <X>-potential/01-nvt-round-1 \
   --all-frames <X>-potential/01-nvt-round-1/uncertainty_all_frames.csv \
   --base <X>-potential/current.db \
   --output-root <X>-potential/01-nvt-round-1/absolute-u-projected-cur \
   --u-min <calibrated-U-min> \
-  --candidate-frame-gap <approved-gap> \
   --target <approved-DFT-budget> \
-  --tail-threshold <calibrated-U-tail> \
-  --tail-max <approved-tail-cap> \
-  --final-frame-gap <approved-gap>
+  --r-c 6.0 \
+  --n-max 5 \
+  --l-max 6 \
+  --similarity-threshold 0.99999
 ```
 
-The output is protected. Validate source allocation, U range, final frame
-gaps, descriptor/CUR records, geometry limits, and provenance before DFT.
+The output is protected. Validate its U range, descriptor/CUR records, finite
+geometry, and provenance before DFT.
 
 ## 5. DFT, Dk, Mk, and Ek
 
@@ -104,3 +106,7 @@ Submit final selected POSCARs with a unique `<X>`-local work directory and
 new-label DB. Validate the label DB, merge it only into that element's current
 DB, train Mk, and perform the fixed EOS Ek evaluation. Compare Ek with E0 and
 all prior Ek values before approving another round.
+
+Committee training uses ten models, five concurrent workers, eight threads per
+worker, and 5000 epochs by default. Pass the epoch count explicitly in every
+production submission; do not reuse the historical 1000-epoch M0/M1 outputs.

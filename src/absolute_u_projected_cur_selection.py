@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Select absolute-uncertainty MD candidates with source-constrained CUR."""
+"""Select absolute-uncertainty MD candidates with current-DB-projected CUR."""
 
 from __future__ import annotations
 
@@ -194,7 +194,7 @@ def write_candidate_poscars(
 
 
 class SourceTailCurSelector:
-    """Greedy projected CUR with balanced source quotas and a tail-count cap."""
+    """Greedy projected CUR with optional source balancing and tail cap."""
 
     def __init__(
         self,
@@ -205,8 +205,8 @@ class SourceTailCurSelector:
         source_min: int,
         source_max: int,
         target: int,
-        tail_threshold: float,
-        tail_max: int,
+        tail_threshold: float | None,
+        tail_max: int | None,
         similarity_threshold: float | None,
         min_frame_gap: int,
     ) -> None:
@@ -231,7 +231,10 @@ class SourceTailCurSelector:
         self.tail_count = 0
 
     def is_tail(self, idx: int) -> bool:
-        return float(self.metadata[idx]["uncertainty"]) >= self.tail_threshold
+        return (
+            self.tail_threshold is not None
+            and float(self.metadata[idx]["uncertainty"]) >= self.tail_threshold
+        )
 
     def can_use(self, idx: int) -> bool:
         if idx in self.selected_indices or idx in self.rejected_indices:
@@ -240,7 +243,11 @@ class SourceTailCurSelector:
         source = row["trajectory"]
         if self.source_counts[source] >= self.source_max:
             return False
-        if self.is_tail(idx) and self.tail_count >= self.tail_max:
+        if (
+            self.is_tail(idx)
+            and self.tail_max is not None
+            and self.tail_count >= self.tail_max
+        ):
             return False
         if self.min_frame_gap > 0:
             frame = int(row["frame"])
@@ -314,21 +321,22 @@ class SourceTailCurSelector:
         return False
 
     def run(self) -> tuple[list[int], list[dict]]:
-        print(
-            f"Phase 1: enforcing source minimum quotas ({self.source_min}/source)...",
-            flush=True,
-        )
-        for source in self.sources:
-            while self.source_counts[source] < self.source_min:
-                if not self.select_one("source-min", source_only=source):
-                    raise RuntimeError(
-                        f"Could not satisfy source minimum quota for {source}"
-                    )
+        if self.source_min > 0:
+            print(
+                f"Phase 1: enforcing source minimum quotas ({self.source_min}/source)...",
+                flush=True,
+            )
+            for source in self.sources:
+                while self.source_counts[source] < self.source_min:
+                    if not self.select_one("source-min", source_only=source):
+                        raise RuntimeError(
+                            f"Could not satisfy source minimum quota for {source}"
+                        )
 
-        print("Phase 2: filling source-constrained projected CUR selection...", flush=True)
+        print("Filling projected CUR selection...", flush=True)
         while len(self.selected_indices) < self.target:
-            if not self.select_one("balanced-fill"):
-                raise RuntimeError("Could not fill the target under source/tail/gap constraints")
+            if not self.select_one("cur-fill"):
+                raise RuntimeError("Could not fill the projected CUR target")
 
         if any(self.source_counts[source] < self.source_min for source in self.sources):
             raise RuntimeError("Final selection violates a source minimum quota")
@@ -361,9 +369,18 @@ def update_metadata(
     return updated
 
 
-def distribution_rows(rows: list[dict], tail_threshold: float) -> list[dict]:
+def distribution_rows(
+    rows: list[dict],
+    tail_threshold: float | None,
+) -> list[dict]:
     selected = [row for row in rows if row["final_selected"] == "True"]
     source_counts = Counter(row["trajectory"] for row in selected)
+    output = []
+    for source, count in sorted(source_counts.items(), key=lambda item: source_sort_key(item[0])):
+        output.append({"group": "source", "source": source, "uncertainty_layer": "", "count": count})
+    if tail_threshold is None:
+        return output
+
     layer_counts = Counter(
         "U-ge-tail" if float(row["uncertainty"]) >= tail_threshold else "U-below-tail"
         for row in selected
@@ -375,9 +392,6 @@ def distribution_rows(rows: list[dict], tail_threshold: float) -> list[dict]:
         )
         for row in selected
     )
-    output = []
-    for source, count in sorted(source_counts.items(), key=lambda item: source_sort_key(item[0])):
-        output.append({"group": "source", "source": source, "uncertainty_layer": "", "count": count})
     for layer in ("U-below-tail", "U-ge-tail"):
         output.append({
             "group": "uncertainty_layer",
@@ -400,18 +414,19 @@ def distribution_rows(rows: list[dict], tail_threshold: float) -> list[dict]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Absolute-U MD candidate extraction plus source-constrained projected CUR."
+        description="Absolute-U MD candidate extraction plus current-DB-projected CUR."
     )
     parser.add_argument("--round-dir", required=True, help="NVT/NPT round directory")
     parser.add_argument("--all-frames", default=None, help="Saved uncertainty_all_frames.csv")
     parser.add_argument("--base", required=True, help="Current training ASE DB for projection")
     parser.add_argument("--output-root", required=True, help="New protected selection output directory")
     parser.add_argument("--u-min", type=float, default=0.3)
-    parser.add_argument("--candidate-frame-gap", type=int, default=50)
+    parser.add_argument("--candidate-frame-gap", type=int, default=0)
     parser.add_argument("--target", type=int, default=100)
-    parser.add_argument("--tail-threshold", type=float, default=3.0)
-    parser.add_argument("--tail-max", type=int, default=10)
-    parser.add_argument("--final-frame-gap", type=int, default=50)
+    parser.add_argument("--balance-sources", action="store_true")
+    parser.add_argument("--tail-threshold", type=float)
+    parser.add_argument("--tail-max", type=int)
+    parser.add_argument("--final-frame-gap", type=int, default=0)
     parser.add_argument("--r-c", type=float, default=6.0)
     parser.add_argument("--n-max", type=int, default=5)
     parser.add_argument("--l-max", type=int, default=6)
@@ -423,11 +438,14 @@ def parse_args() -> argparse.Namespace:
 def validate_args(args: argparse.Namespace) -> None:
     if not math.isfinite(args.u_min):
         raise ValueError("--u-min must be finite")
-    if not math.isfinite(args.tail_threshold) or args.tail_threshold < args.u_min:
-        raise ValueError("--tail-threshold must be finite and >= --u-min")
+    if args.tail_max is not None:
+        if args.tail_threshold is None:
+            raise ValueError("--tail-max requires --tail-threshold")
+        if not math.isfinite(args.tail_threshold) or args.tail_threshold < args.u_min:
+            raise ValueError("--tail-threshold must be finite and >= --u-min")
     if args.candidate_frame_gap < 0 or args.final_frame_gap < 0:
         raise ValueError("Frame gaps must be >= 0")
-    if args.target <= 0 or args.tail_max < 0:
+    if args.target <= 0 or (args.tail_max is not None and args.tail_max < 0):
         raise ValueError("--target must be > 0 and --tail-max must be >= 0")
     if args.r_c <= 0 or args.n_max <= 0 or args.l_max <= 0:
         raise ValueError("Descriptor parameters must be positive")
@@ -454,12 +472,16 @@ def main() -> None:
         all_rows, args.u_min, args.candidate_frame_gap
     )
     sources = sorted(selected_by_source, key=source_sort_key)
-    if args.target < len(sources):
+    if args.balance_sources and args.target < len(sources):
         raise ValueError(
             f"Target {args.target} must be at least the source count {len(sources)}"
         )
-    source_min = args.target // len(sources)
-    source_max = int(math.ceil(args.target / len(sources)))
+    if args.balance_sources:
+        source_min = args.target // len(sources)
+        source_max = int(math.ceil(args.target / len(sources)))
+    else:
+        source_min = 0
+        source_max = args.target
     candidate_count = sum(len(rows) for rows in selected_by_source.values())
     if candidate_count < args.target:
         raise ValueError(f"Only {candidate_count} candidates for target {args.target}")
@@ -468,10 +490,11 @@ def main() -> None:
         f"u_min={args.u_min:g} candidate_gap={args.candidate_frame_gap}",
         flush=True,
     )
-    print(
-        f"Source quotas: min={source_min} max={source_max} target={args.target}",
-        flush=True,
-    )
+    if args.balance_sources:
+        print(
+            f"Source quotas: min={source_min} max={source_max} target={args.target}",
+            flush=True,
+        )
     print(
         "Candidate counts by source: "
         + str({source: len(selected_by_source[source]) for source in sources}),
@@ -544,6 +567,7 @@ def main() -> None:
                     f"candidate_frame_gap={args.candidate_frame_gap}",
                     f"target={args.target}",
                     f"source_count={len(sources)}",
+                    f"balance_sources={args.balance_sources}",
                     f"source_min={source_min}",
                     f"source_max={source_max}",
                     f"tail_threshold={args.tail_threshold}",
@@ -567,7 +591,8 @@ def main() -> None:
 
     print(f"Done: selected {args.target} structures into {output_root}", flush=True)
     print(f"Source counts: {dict(selector.source_counts)}", flush=True)
-    print(f"Tail U >= {args.tail_threshold:g}: {selector.tail_count}", flush=True)
+    if args.tail_threshold is not None:
+        print(f"Tail U >= {args.tail_threshold:g}: {selector.tail_count}", flush=True)
     print(f"Rejected by similarity: {len(selector.rejected_indices)}", flush=True)
 
 

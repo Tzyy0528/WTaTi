@@ -1,11 +1,25 @@
-"""Temperature windows for automatic scheduling.
+"""Reference elemental phase-change temperatures and high-temperature MD targets.
 
-The staged workflow uses explicitly approved MD conditions.
-Populate this table only if automatic scheduling is separately validated.
+The staged unary workflow uses the melting-to-boiling interval for its
+high-temperature exploratory MD target.  This is intentionally a liquid or
+near-liquid sampling regime rather than a solid-phase MD schedule.
+
+Values below are normal-pressure values in kelvin transcribed from the
+peer-reviewed melting- and boiling-point records served by PubChem PUG View
+on 2026-07-24:
+  W:  https://pubchem.ncbi.nlm.nih.gov/compound/23964
+  Ta: https://pubchem.ncbi.nlm.nih.gov/compound/23956
+  Ti: https://pubchem.ncbi.nlm.nih.gov/compound/23963
 """
 
 
-TEMPERATURE_TABLE = {}
+TEMPERATURE_TABLE = {
+    # Reported values: 3410/5900 degC (W), 2996/5429 degC (Ta),
+    # and 1668/3287 degC (Ti), converted by adding 273.15 K.
+    ("W",): {"melting_point_K": 3683.15, "boiling_point_K": 6173.15},
+    ("Ta",): {"melting_point_K": 3269.15, "boiling_point_K": 5702.15},
+    ("Ti",): {"melting_point_K": 1941.15, "boiling_point_K": 3560.15},
+}
 
 
 def normalize_symbols(symbols):
@@ -27,7 +41,7 @@ def get_temperature_window(symbols):
 
 
 def make_temperatures(symbols, n_rounds, margin=0.1):
-    """在熔点和沸点之间生成指定数量的采样温度。"""
+    """生成熔点与沸点之间的高温探索 MD 温度。"""
     if n_rounds < 1:
         return []
 

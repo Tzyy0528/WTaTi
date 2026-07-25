@@ -175,7 +175,10 @@ def parse_args():
         help="parallel RSS cases; 0=auto, 1=sequential",
     )
     parser.add_argument(
-        "--mini-press-list", type=float_list, default=[0.0, 20e4, 40e4]
+        "--mini-press-list",
+        type=float_list,
+        default=[0.0, 20e4, 40e4],
+        help="Mini box/relax pressures in bar: 0,20e4,40e4 = 0,20,40 GPa",
     )
     parser.add_argument("--mini-keyword", default="tri")
     parser.add_argument("--mini-loop", type=positive_int, default=10)
@@ -194,7 +197,7 @@ def parse_args():
 
 def build_cases(elems, args):
     if len(elems) == 1:
-        natoms = tuple(args.natoms_list or [4, 6, 8, 10, 12])
+        natoms = tuple(args.natoms_list or [9, 10, 12, 15, 18, 20, 22, 25])
         return [RssCase(f"unary-{elems[0]}", (1,), natoms)]
 
     cases = []

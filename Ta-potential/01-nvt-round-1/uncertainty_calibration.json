@@ -1,0 +1,28 @@
+{
+  "all_frame_scoring_job": 13012,
+  "balance_sources": false,
+  "candidate_count": 1126,
+  "candidate_counts_by_source": {
+    "scale-0p9": 709,
+    "scale-0p95": 94,
+    "scale-1": 32,
+    "scale-1p05": 45,
+    "scale-1p1": 246
+  },
+  "candidate_frame_gap": 0,
+  "committee": "Ta-potential/model_versions/M0_from_D0/train-committee/train-*/*.jnn",
+  "element": "Ta",
+  "equilibration_discarded_per_source": 500,
+  "final_frame_gap": 0,
+  "l_max": 6,
+  "n_max": 5,
+  "production_frames": 22505,
+  "r_c_A": 6.0,
+  "round": "01-nvt-round-1",
+  "scored_frames": 25005,
+  "similarity_threshold": 0.99999,
+  "tail_cap": null,
+  "target_structures": 100,
+  "u_min_eV_A": 3.496426176,
+  "u_min_method": "95th percentile of post-equilibration committee uncertainty"
+}\n
