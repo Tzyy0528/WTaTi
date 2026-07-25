@@ -54,7 +54,8 @@ improved phase-aligned shape but regressed in raw cross-phase energy.
 - M1 fixed-reference E1 validation: `11_M1_validation_E1_evaluation/`.
 
 ## Immediate Next Step
-The approved arithmetic-mean `U_min` values are W `0.064288`, Ta `0.047964`,
-and Ti `0.048319` eV/A. Review the E1-versus-E0 regression/improvement
-evidence and obtain a scientific continue/stop decision before D2. E1 is
-validation-only and did not change `current.db`.
+D2 NVT jobs W `13142`, Ta `13143`, and Ti `13144` completed successfully.
+All 15 original-D1-grid sources passed provenance, finite-data, frame-count,
+summary-count, and final-log validation. The next gated action is element-local
+all-frame uncertainty scoring with the full M1 committees; selection and later
+stages remain unstarted.
