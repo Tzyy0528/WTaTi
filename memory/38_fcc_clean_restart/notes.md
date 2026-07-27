@@ -134,3 +134,18 @@ sbatch --job-name=fcc_d0_<X> --nodes=1 --ntasks=64 --time=24:00:00 \
 
 Neither `OVERWRITE` nor `FORCE_PREPARE` is set. The distinct default VASP
 work directory is `00-input/dft/vasp_<X>_FCC_D0/`.
+
+### Clean D0 Protocol-A submissions
+
+After preflight, only the new required `00-input/slurm_logs/` directories
+were created. The documented commands were submitted unchanged:
+
+| Element | Job ID | Candidate input | Label DB output | Immediate status |
+|---|---:|---|---|---|
+| W | `13381` | `W-potential/fcc-restart/00-input/seed-generation/nninit-poscars/` | `W-potential/fcc-restart/00-input/W_FCC_D0_labeled.db` | `PENDING` |
+| Ta | `13382` | `Ta-potential/fcc-restart/00-input/seed-generation/nninit-poscars/` | `Ta-potential/fcc-restart/00-input/Ta_FCC_D0_labeled.db` | `PENDING` |
+| Ti | `13383` | `Ti-potential/fcc-restart/00-input/seed-generation/nninit-poscars/` | `Ti-potential/fcc-restart/00-input/Ti_FCC_D0_labeled.db` | `PENDING` |
+
+One combined immediate `squeue` check was made after all three submissions.
+No polling loop was started. No clean FCC D0 `current.db`, committee,
+trajectory, selection, or EOS output exists yet.

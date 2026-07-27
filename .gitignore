@@ -15,7 +15,6 @@ __pycache__/
 **/log
 **/*.jnn
 **/Trainer.groovy
-**/*.png
 **/nep*.txt
 **/*.sh
 **/*.err
@@ -25,7 +24,6 @@ __pycache__/
 **/dft/**
 **/vasp/**
 **/*.log
-**/*.csv
 **/*.dat
 **/*.txt
 **/*done

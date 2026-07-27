@@ -32,10 +32,16 @@ correctly expanded 2x2x2 FCC seeds, with no reuse of deleted FCC artifacts.
   manually transcribed expected POTCAR SHA-256 omitted characters. No output
   path was created and no calculation was submitted. Resolution: use the
   recorded full Ti checksum and rerun the read-only preflight.
+- The first post-submission memory-index patch used stale wording and did not
+  apply to that file; task-record updates succeeded. Resolution: read the
+  current index and apply a focused status update without changing workflow
+  assets.
 
 ## Status
 **Currently in Phase 3** - new W, Ta, and Ti seeds passed exact `2 2 2`
 source-cell validation: each has 32 atoms and all three lattice vectors are
 doubled. All three fresh D0 pools have 100 validated 32-atom candidates;
-the Protocol-A VASP cards passed no-overwrite preflight. Submit the three
-independent D0 label batches next.
+the Protocol-A VASP cards passed no-overwrite preflight; and D0 VASP jobs W
+`13381`, Ta `13382`, and Ti `13383` are submitted. The single immediate check
+found all pending; do not poll. On a later completion request, validate all
+three 100-row 32-atom label DBs before publishing a clean FCC D0 state.

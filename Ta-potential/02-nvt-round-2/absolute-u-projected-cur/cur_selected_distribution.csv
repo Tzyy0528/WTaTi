@@ -1,0 +1,6 @@
+group,source,uncertainty_layer,count
+source,scale-0p9,,5
+source,scale-0p95,,3
+source,scale-1,,3
+source,scale-1p05,,28
+source,scale-1p1,,61

@@ -19,7 +19,9 @@ The fixed validation-only references remain under:
 Fresh W, Ta, and Ti seed POSCARs are validated exact `2 2 2` repeats of only
 their retained four-atom benchmark FCC sources: 32 atoms and all three
 lattice-vector lengths doubled. Each fresh `fcc-restart/` root now contains
-only its matching validated 100-frame 32-atom D0 candidate pool.
+only its matching validated 100-frame 32-atom D0 candidate pool. Clean D0
+Protocol-A VASP jobs W `13381`, Ta `13382`, and Ti `13383` are submitted; the
+one immediate check found all pending.
 
 ## Standing Constraints
 - Keep W, Ta, and Ti data, databases, models, candidate pools, and EOS
@@ -40,6 +42,7 @@ only its matching validated 100-frame 32-atom D0 candidate pool.
 - Active clean restart record: `38_fcc_clean_restart/`.
 
 ## Immediate Next Step
-Preflight and submit independent Protocol-A D0 VASP labeling for the three
-fresh candidate pools. Output DBs and VASP work directories must be new and
-element-local.
+Do not poll D0 jobs W `13381`, Ta `13382`, and Ti `13383`. On a later
+completion request, make one focused scheduler check and validate the three
+100-row 32-atom label DBs before publishing clean FCC D0 databases and
+preflighting M0.
