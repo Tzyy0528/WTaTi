@@ -18,18 +18,3 @@ trajectory, summary, and provenance validation.
 
 ## Files Changed
 - `memory/12_D2_NVT_sampling/`: D2 planning, preflight, and submission record.
-
-## Outcome
-Pending D2 NVT submission from the validated element-local M1 committees.
-
-## Key Results / Decisions
-- D2 retains the original D1 five-scale grid and NVT controls.
-- The complete M1 committee is required for each element.
-
-## How to Use / Verify
-- Submit only through `scripts/slurm/run_md_round.slurm`.
-- Validate five complete source trajectories and summaries per element before
-  all-frame uncertainty scoring.
-
-## Files Changed
-- `memory/12_D2_NVT_sampling/`: D2 NVT sampling plan, notes, and deliverable.

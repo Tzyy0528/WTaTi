@@ -32,5 +32,6 @@ element-local output roots.
 - None.
 
 ## Status
-**Currently in Phase 4** - all 15 D2 MD sources passed validation. The next
-gate is all-frame M1-committee uncertainty scoring; it has not been submitted.
+**Sampling task complete** - all 15 D2 MD sources passed validation. D2
+all-frame scoring and selection are tracked in
+`memory/13_D2_scoring_selection/`.

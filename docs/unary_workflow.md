@@ -24,6 +24,11 @@ POTCAR/PBE/<X>/POTCAR
 Record PAW checksum/ENMAX, frozen Protocol A/B, atomic reference energy, and
 MD settings in a task record. Do not submit anything at this step.
 
+The current `W`/`Ta`/`Ti` seed POSCARs already contain 16 atoms as explicit
+`2 x 2 x 2` supercells. Use `--rep 1 1 1` when sampling from them to retain a
+16-atom MD cell. A further `--rep 2 2 2` produces 128 atoms and requires an
+explicitly approved parameter card.
+
 ## 2. EOS Reference
 
 Generate explicit, fixed EOS grids for all three required phases (`bcc`, `fcc`,

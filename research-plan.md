@@ -298,6 +298,12 @@ The D0 population is checked for unary composition, 3D PBC, finite positions,
 positive cell volume, finite minimum distance, and finite DFT results before
 it becomes `current.db`.
 
+The completed D0 record above used the original two-atom seed cells with
+`seed_rep = 2 2 2`. The current `W`/`Ta`/`Ti` seed POSCARs are their explicit
+16-atom `2 x 2 x 2` supercells. Future sampling started from these seed files
+must use `--rep 1 1 1` to retain a 16-atom cell; `--rep 2 2 2` would create a
+128-atom cell and requires an explicit new parameter card.
+
 `E0` is the required baseline record. A poor but complete E0 remains useful:
 later rounds test whether the selection process improves it.
 
@@ -313,7 +319,7 @@ element and round name
 input DB checksum and M(k-1) JNN hashes
 starting POSCAR/phase
 ensemble: NVT, NPT, or RSS
-supercell repetition (`2 2 2` standard)
+supercell repetition (`1 1 1` for the current 16-atom seed POSCARs)
 temperature
 NVT scale factors or NPT pressures
 steps, timestep, equilibration fraction, write interval, log interval
@@ -353,10 +359,11 @@ when used:
 | NPT `frac_traceless` | 0.00 |
 
 The detailed stage configuration overrides a default only by passing the
-explicit value on the command line. The standard production supercell is
-always `--rep 2 2 2`, and the SLURM command still spells it explicitly.
-Temperature, scale grid, pressure grid, trajectory length, and DFT budget
-remain element- and stage-specific.
+explicit value on the command line. The current 16-atom seed POSCARs require
+`--rep 1 1 1` for a 16-atom production cell; use `--rep 2 2 2` only after
+explicitly approving a 128-atom calculation. Temperature, scale grid,
+pressure grid, trajectory length, and DFT budget remain element- and
+stage-specific.
 
 ### 8.3 Temperature Reference Data
 
