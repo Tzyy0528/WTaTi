@@ -16,6 +16,7 @@ import numpy as np
 from ase.geometry import wrap_positions
 from ase.io import iread, write
 from scipy.linalg import svd
+from scipy.spatial import Delaunay, QhullError
 
 SCRIPT_DIR = Path(globals().get("__file__", sys.argv[0])).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR))
@@ -38,6 +39,8 @@ CANDIDATE_FIELDS = (
     "instant_pressure_gpa",
     "natoms",
     "min_distance_A",
+    "void_radius_A",
+    "normalized_void",
     "physical_gate_status",
     "candidate_rank_source",
     "candidate_file",
@@ -65,6 +68,8 @@ PHYSICAL_GATE_REJECTION_FIELDS = (
     "max_force_model0",
     "candidate_rank_source",
     "min_distance_A",
+    "void_radius_A",
+    "normalized_void",
     "physical_gate_reasons",
 )
 
@@ -151,10 +156,58 @@ def minimum_distance(atoms) -> float:
     return float(np.min(distances))
 
 
+def maximum_normalized_void(atoms) -> tuple[float, float]:
+    """Return the periodic maximum empty-sphere radius and normalized value."""
+    if len(atoms) < 4:
+        raise ValueError("At least four atoms are required for a void metric")
+    if not np.all(atoms.pbc):
+        raise ValueError("The normalized void metric requires 3D periodic boundary conditions")
+
+    cell = np.asarray(atoms.cell.array, dtype=float)
+    if not np.isfinite(cell).all():
+        raise ValueError("Non-finite cell for void metric")
+    volume_per_atom = float(atoms.get_volume() / len(atoms))
+    if not math.isfinite(volume_per_atom) or volume_per_atom <= 0.0:
+        raise ValueError("Invalid volume per atom for void metric")
+
+    positions = atoms.get_positions(wrap=True)
+    translations = np.array(
+        [(i, j, k) for i in (-1, 0, 1) for j in (-1, 0, 1) for k in (-1, 0, 1)],
+        dtype=float,
+    )
+    periodic_points = np.concatenate([positions + shift @ cell for shift in translations])
+    try:
+        triangulation = Delaunay(periodic_points)
+    except QhullError as exc:
+        raise ValueError("Periodic Delaunay construction failed for void metric") from exc
+
+    inverse_cell = np.linalg.inv(cell)
+    radius_max = 0.0
+    for simplex in triangulation.simplices:
+        tetrahedron = periodic_points[simplex]
+        matrix = 2.0 * (tetrahedron[1:] - tetrahedron[0])
+        rhs = (
+            np.einsum("ij,ij->i", tetrahedron[1:], tetrahedron[1:])
+            - np.dot(tetrahedron[0], tetrahedron[0])
+        )
+        try:
+            center = np.linalg.solve(matrix, rhs)
+        except np.linalg.LinAlgError:
+            continue
+        fractional_center = center @ inverse_cell
+        if np.all(fractional_center >= -1.0e-9) and np.all(fractional_center < 1.0 - 1.0e-9):
+            radius_max = max(radius_max, float(np.linalg.norm(center - tetrahedron[0])))
+
+    if not math.isfinite(radius_max) or radius_max <= 0.0:
+        raise ValueError("Could not determine a positive periodic maximum empty sphere")
+    return radius_max, radius_max / volume_per_atom ** (1.0 / 3.0)
+
+
 def write_candidate_poscars(
     selected_by_source: dict[str, list[dict]],
     candidate_dir: Path,
     min_distance_limit: float | None,
+    max_normalized_void: float | None,
 ) -> tuple[list[dict], list[dict]]:
     candidate_dir.mkdir()
     rows: list[dict] = []
@@ -189,13 +242,21 @@ def write_candidate_poscars(
             minimum_distance_value = minimum_distance(atoms)
             if not math.isfinite(minimum_distance_value) or minimum_distance_value <= 0.0:
                 raise ValueError(f"Invalid minimum distance for {source} frame {frame}")
-            if (
-                min_distance_limit is not None
-                and minimum_distance_value < min_distance_limit
-            ):
+            void_radius, normalized_void = maximum_normalized_void(atoms)
+            if not math.isfinite(normalized_void) or normalized_void <= 0.0:
+                raise ValueError(f"Invalid normalized void metric for {source} frame {frame}")
+
+            reasons = []
+            if min_distance_limit is not None and minimum_distance_value < min_distance_limit:
+                reasons.append(f"min_distance_A<{min_distance_limit:g}")
+            if max_normalized_void is not None and normalized_void > max_normalized_void:
+                reasons.append(f"normalized_void>{max_normalized_void:g}")
+            if reasons:
                 rejected = dict(row)
                 rejected["min_distance_A"] = minimum_distance_value
-                rejected["physical_gate_reasons"] = f"min_distance_A<{min_distance_limit:g}"
+                rejected["void_radius_A"] = void_radius
+                rejected["normalized_void"] = normalized_void
+                rejected["physical_gate_reasons"] = ";".join(reasons)
                 gate_rejections.append(rejected)
                 continue
 
@@ -219,6 +280,8 @@ def write_candidate_poscars(
                 "instant_pressure_gpa": row.get("instant_pressure_gpa", ""),
                 "natoms": len(atoms),
                 "min_distance_A": minimum_distance_value,
+                "void_radius_A": void_radius,
+                "normalized_void": normalized_void,
                 "physical_gate_status": "passed",
                 "candidate_rank_source": row["candidate_rank_source"],
                 "candidate_file": candidate_file,
@@ -487,6 +550,11 @@ def parse_args() -> argparse.Namespace:
         help="Require at least one physical-gate-valid candidate from every production source.",
     )
     parser.add_argument("--tail-threshold", type=float)
+    parser.add_argument(
+        "--tail-quantile",
+        type=float,
+        help="Resolve the extreme-U threshold from this quantile of geometry-valid candidates.",
+    )
     parser.add_argument("--tail-max", type=int)
     parser.add_argument("--final-frame-gap", type=int, default=0)
     parser.add_argument(
@@ -509,6 +577,14 @@ def parse_args() -> argparse.Namespace:
         type=float,
         help="Reject candidate frames below this minimum pair-distance gate in A.",
     )
+    parser.add_argument(
+        "--max-normalized-void",
+        type=float,
+        help=(
+            "Reject candidate frames above this periodic maximum-empty-sphere metric "
+            "R_void,max/(V/N)^(1/3)."
+        ),
+    )
     parser.add_argument("--r-c", type=float, default=6.0)
     parser.add_argument("--n-max", type=int, default=5)
     parser.add_argument("--l-max", type=int, default=6)
@@ -520,11 +596,17 @@ def parse_args() -> argparse.Namespace:
 def validate_args(args: argparse.Namespace) -> None:
     if not math.isfinite(args.u_min):
         raise ValueError("--u-min must be finite")
-    if args.tail_max is not None:
-        if args.tail_threshold is None:
-            raise ValueError("--tail-max requires --tail-threshold")
+    if args.tail_threshold is not None:
         if not math.isfinite(args.tail_threshold) or args.tail_threshold < args.u_min:
             raise ValueError("--tail-threshold must be finite and >= --u-min")
+    if args.tail_quantile is not None:
+        if not math.isfinite(args.tail_quantile) or not 0.0 < args.tail_quantile <= 1.0:
+            raise ValueError("--tail-quantile must be finite and in (0, 1]")
+    if args.tail_threshold is not None and args.tail_quantile is not None:
+        raise ValueError("Use only one of --tail-threshold or --tail-quantile")
+    if args.tail_max is not None:
+        if args.tail_threshold is None and args.tail_quantile is None:
+            raise ValueError("--tail-max requires --tail-threshold or --tail-quantile")
     if args.candidate_frame_gap < 0 or args.final_frame_gap < 0:
         raise ValueError("Frame gaps must be >= 0")
     if args.target <= 0 or (args.tail_max is not None and args.tail_max < 0):
@@ -538,6 +620,7 @@ def validate_args(args: argparse.Namespace) -> None:
         "max_volume_per_atom",
         "max_force",
         "min_distance",
+        "max_normalized_void",
     ):
         value = getattr(args, name)
         if value is not None and (not math.isfinite(value) or value <= 0.0):
@@ -588,10 +671,24 @@ def main() -> None:
         u_tag = f"{args.u_min:.6g}".replace("-", "m").replace(".", "p")
         candidate_dir = tmp_root / f"u{u_tag}-gap{args.candidate_frame_gap}-candidates-poscar"
         candidate_rows, distance_rejections = write_candidate_poscars(
-            selected_by_source, candidate_dir, args.min_distance
+            selected_by_source,
+            candidate_dir,
+            args.min_distance,
+            args.max_normalized_void,
         )
         physical_gate_rejections.extend(distance_rejections)
         candidate_count = len(candidate_rows)
+        tail_threshold = args.tail_threshold
+        if args.tail_quantile is not None:
+            tail_threshold = float(
+                np.quantile(
+                    [float(row["uncertainty"]) for row in candidate_rows],
+                    args.tail_quantile,
+                    method="linear",
+                )
+            )
+            if tail_threshold < args.u_min:
+                raise RuntimeError("Resolved tail threshold is below --u-min")
         sources = sorted({row["trajectory"] for row in candidate_rows}, key=source_sort_key)
         if args.require_all_sources:
             missing_sources = sorted(expected_sources - set(sources), key=source_sort_key)
@@ -627,6 +724,8 @@ def main() -> None:
             + str({source: sum(row["trajectory"] == source for row in candidate_rows) for source in sources}),
             flush=True,
         )
+        if tail_threshold is not None:
+            print(f"Tail U threshold: {tail_threshold:g}", flush=True)
         write_csv(
             tmp_root / "physical_gate_rejections.csv",
             physical_gate_rejections,
@@ -659,7 +758,7 @@ def main() -> None:
             source_min=source_min,
             source_max=source_max,
             target=args.target,
-            tail_threshold=args.tail_threshold,
+            tail_threshold=tail_threshold,
             tail_max=args.tail_max,
             similarity_threshold=similarity_threshold,
             min_frame_gap=args.final_frame_gap,
@@ -678,7 +777,7 @@ def main() -> None:
         write_csv(tmp_root / "selection_summary.csv", updated_rows, CANDIDATE_FIELDS)
         write_csv(
             tmp_root / "cur_selected_distribution.csv",
-            distribution_rows(updated_rows, args.tail_threshold),
+            distribution_rows(updated_rows, tail_threshold),
             ("group", "source", "uncertainty_layer", "count"),
         )
         (tmp_root / "selection_parameters.txt").write_text(
@@ -692,7 +791,8 @@ def main() -> None:
                     f"require_all_sources={args.require_all_sources}",
                     f"source_min={source_min}",
                     f"source_max={source_max}",
-                    f"tail_threshold={args.tail_threshold}",
+                    f"tail_threshold={tail_threshold}",
+                    f"tail_quantile={args.tail_quantile}",
                     f"tail_max={args.tail_max}",
                     f"final_frame_gap={args.final_frame_gap}",
                     f"r_c={args.r_c}",
@@ -703,6 +803,7 @@ def main() -> None:
                     f"max_volume_per_atom={args.max_volume_per_atom}",
                     f"max_force={args.max_force}",
                     f"min_distance={args.min_distance}",
+                    f"max_normalized_void={args.max_normalized_void}",
                     f"physical_gate_rejection_count={len(physical_gate_rejections)}",
                     f"base={base_path}",
                     f"all_frames={all_frames_path}",
@@ -718,8 +819,8 @@ def main() -> None:
 
     print(f"Done: selected {args.target} structures into {output_root}", flush=True)
     print(f"Source counts: {dict(selector.source_counts)}", flush=True)
-    if args.tail_threshold is not None:
-        print(f"Tail U >= {args.tail_threshold:g}: {selector.tail_count}", flush=True)
+    if tail_threshold is not None:
+        print(f"Tail U >= {tail_threshold:g}: {selector.tail_count}", flush=True)
     print(f"Rejected by similarity: {len(selector.rejected_indices)}", flush=True)
 
 

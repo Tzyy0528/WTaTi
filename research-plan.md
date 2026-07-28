@@ -58,7 +58,9 @@ Every active-learning selection uses this exact chain:
 current committee
 -> score every production frame
 -> calibrated absolute-U lower cutoff
+-> periodic minimum-distance and abnormal-local-void gates
 -> current.db-projected CUR
+-> capped extreme-U tail
 -> DFT labels
 ```
 
@@ -73,6 +75,11 @@ the final DFT set. Final selection uses
 The current element/model/pool determines `U_min`, DFT budget, and CUR
 parameters. They are recorded with the round; they are not copied from Al or
 another element.
+
+Candidate/final temporal frame gaps are disabled unless explicitly approved
+for a later round. Structural redundancy is controlled by projection against
+the element-local `current.db` and the final descriptor-similarity check, not
+by frame number.
 
 ## 4. Directory, Version, and Provenance Convention
 
@@ -505,7 +512,42 @@ instant pressure when available
 equilibration-discard flag
 ```
 
-### 10.2 Calibrate the Current Pool
+### 10.2 Geometry Gates
+
+After removal of equilibration frames and the element-local absolute-U lower
+cutoff, reconstruct every candidate frame and apply only these ordinary
+physical hard rejections:
+
+```text
+minimum pair distance under periodic boundary conditions
+normalized maximum local empty sphere under periodic boundary conditions
+```
+
+For element `<X>`, set the minimum-distance limit from only the matching
+clean D0 database:
+
+```text
+d_min >= 0.80 * min_D0(d_min)
+```
+
+Define the local-void statistic using the maximum Delaunay-tetrahedron empty
+sphere over the periodic cell:
+
+```text
+q_void = R_void,max / (V / N)^(1/3)
+q_void <= 1.15 * max_D0(q_void)
+```
+
+The D0 minimum/maximum values and resulting limits are recalculated and
+recorded independently for every element. Normal lattice interstices are not
+void failures. A targeted vacancy, pore, crack, or other intended cavity
+requires a separately approved reference set; it must not be silently
+admitted by relaxing this gate. Finite values, positive cell volume, unary
+composition, 3D PBC, and trajectory provenance remain mandatory validity
+conditions. Force, total volume, pressure, and source composition are
+auditable diagnostics rather than ordinary hard rejections.
+
+### 10.3 Calibrate the Current Pool
 
 Use the current sampling committee's final logged test-force errors together
 with the saved production-frame CSV to determine and record:
@@ -514,6 +556,7 @@ with the saved production-frame CSV to determine and record:
 U_min                 committee-log-derived force-error threshold
 N_DFT                 final label budget
 CUR parameters        r_c, n_max, l_max, similarity policy
+U_tail                p99 of geometry-valid candidate uncertainty
 ```
 
 For every JNN used in the MD committee, read the final `MAE-F` test value
@@ -530,13 +573,19 @@ arithmetic-mean force-error aggregate is recalculated independently for the
 committee used in every element and every round; it is never copied from
 another element or model version.
 
+For the extreme-U risk layer, use the linear-interpolated p99 of the
+geometry-valid candidate uncertainty distribution and cap final tail
+structures at `floor(0.05 * N_DFT)`. This tail layer does not replace
+`U_min`, does not impose a global Top-K selection, and must remain subject
+to current.db-projected CUR and final duplicate checks.
+
 Historical exception: the original D1 selection used the production-pool U
 P95 rule. It was explicitly revoked and its selection, labels, successors,
 and downstream M1/E1/D2 assets were removed. The replacement D1 selection
 uses the committee-log force-error threshold rule above; it must not use the
 historical P95 calibration.
 
-### 10.3 Absolute-U Projected CUR
+### 10.4 Absolute-U Projected CUR
 
 Run:
 
@@ -553,6 +602,10 @@ with:
 --output-root <round>/absolute-u-projected-cur
 --u-min <U_min>
 --target <N_DFT>
+--tail-quantile 0.99
+--tail-max <floor(0.05*N_DFT)>
+--min-distance <0.80*min_D0(d_min)>
+--max-normalized-void <1.15*max_D0(q_void)>
 --r-c <r_c>
 --n-max <n_max>
 --l-max <l_max>
@@ -563,7 +616,9 @@ The selector:
 
 ```text
 removes all U < U_min frames
+removes only failed periodic distance/void geometries
 projects descriptors against current.db
+writes p99 tail provenance and caps the selected tail layer
 writes final POSCARs and provenance
 ```
 

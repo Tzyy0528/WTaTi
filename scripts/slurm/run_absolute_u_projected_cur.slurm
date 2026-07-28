@@ -23,9 +23,10 @@ Usage:
     --target <approved-DFT-budget> \
     [--candidate-frame-gap <frames>] [--final-frame-gap <frames>] \
     [--balance-sources] [--require-all-sources] \
-    [--tail-threshold <U>] [--tail-max <count>] \
+    [--tail-threshold <U> | --tail-quantile <0..1>] [--tail-max <count>] \
     [--min-volume-per-atom <A3>] [--max-volume-per-atom <A3>] \
-    [--max-force <eV/A>] [--min-distance <A>]
+    [--max-force <eV/A>] [--min-distance <A>] \
+    [--max-normalized-void <R_void/(V/N)^(1/3)>]
 
 The job refuses to overwrite the CUR output root. Enabled physical/risk gates
 write `physical_gate_rejections.csv` alongside candidate and CUR provenance.
@@ -63,11 +64,13 @@ FINAL_FRAME_GAP="0"
 BALANCE_SOURCES="0"
 REQUIRE_ALL_SOURCES="0"
 TAIL_THRESHOLD=""
+TAIL_QUANTILE=""
 TAIL_MAX=""
 MIN_VOLUME_PER_ATOM=""
 MAX_VOLUME_PER_ATOM=""
 MAX_FORCE=""
 MIN_DISTANCE=""
+MAX_NORMALIZED_VOID=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -86,11 +89,13 @@ while [[ $# -gt 0 ]]; do
         --balance-sources) BALANCE_SOURCES="1"; shift ;;
         --require-all-sources) REQUIRE_ALL_SOURCES="1"; shift ;;
         --tail-threshold) TAIL_THRESHOLD="$2"; shift 2 ;;
+        --tail-quantile) TAIL_QUANTILE="$2"; shift 2 ;;
         --tail-max) TAIL_MAX="$2"; shift 2 ;;
         --min-volume-per-atom) MIN_VOLUME_PER_ATOM="$2"; shift 2 ;;
         --max-volume-per-atom) MAX_VOLUME_PER_ATOM="$2"; shift 2 ;;
         --max-force) MAX_FORCE="$2"; shift 2 ;;
         --min-distance) MIN_DISTANCE="$2"; shift 2 ;;
+        --max-normalized-void) MAX_NORMALIZED_VOID="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown argument: $1" >&2; usage; exit 2 ;;
     esac
@@ -144,6 +149,9 @@ fi
 if [[ -n "$TAIL_THRESHOLD" ]]; then
     cmd+=(--tail-threshold "$TAIL_THRESHOLD")
 fi
+if [[ -n "$TAIL_QUANTILE" ]]; then
+    cmd+=(--tail-quantile "$TAIL_QUANTILE")
+fi
 if [[ -n "$TAIL_MAX" ]]; then
     cmd+=(--tail-max "$TAIL_MAX")
 fi
@@ -158,6 +166,9 @@ if [[ -n "$MAX_FORCE" ]]; then
 fi
 if [[ -n "$MIN_DISTANCE" ]]; then
     cmd+=(--min-distance "$MIN_DISTANCE")
+fi
+if [[ -n "$MAX_NORMALIZED_VOID" ]]; then
+    cmd+=(--max-normalized-void "$MAX_NORMALIZED_VOID")
 fi
 printf '%q ' "${cmd[@]}" > "$ROUND_DIR/slurm_logs/cur-command-${SLURM_JOB_ID}.sh"
 printf '\n' >> "$ROUND_DIR/slurm_logs/cur-command-${SLURM_JOB_ID}.sh"

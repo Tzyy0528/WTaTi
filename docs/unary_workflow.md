@@ -102,29 +102,30 @@ sbatch --output <X>-potential/01-nvt-round-1/slurm_logs/cur-%j.out \
   --output-root <X>-potential/01-nvt-round-1/absolute-u-projected-cur \
   --u-min <calibrated-U-min> \
   --target <approved-DFT-budget> \
-  --candidate-frame-gap <approved-source-gap> \
-  --final-frame-gap <approved-final-gap> \
-  --tail-threshold <approved-tail-U> \
-  --tail-max <approved-tail-count> \
-  --min-volume-per-atom <approved-min-A3-per-atom> \
-  --max-volume-per-atom <approved-max-A3-per-atom> \
-  --max-force <approved-max-eV-per-A> \
-  --min-distance <approved-min-A> \
+  --tail-quantile 0.99 \
+  --tail-max <floor(0.05*approved-DFT-budget)> \
+  --min-distance <0.80*D0-min-distance-A> \
+  --max-normalized-void <1.15*D0-max-q-void> \
   --r-c 6.0 \
   --n-max 5 \
   --l-max 6 \
   --similarity-threshold 0.99999
 ```
 
-The output is protected. The selector writes physical-gate rejections,
-candidate/selected POSCARs, source/tail distributions, and parameter
-provenance. Validate its U range, physical-gate records, descriptor/CUR
-records, finite geometry, source allocation, and tail cap before DFT.
+No candidate or final temporal frame gap is passed. The only ordinary
+physical hard rejections are periodic minimum-distance overlap and the
+normalized periodic maximum-empty-sphere void metric. Committee force,
+volume, pressure, and source composition are retained as diagnostics, not
+ordinary hard filters. The output is protected. The selector writes
+physical-gate rejections, candidate/selected POSCARs, source/tail
+distributions, and parameter provenance. Validate its U range, distance/void
+records, descriptor/CUR records, finite geometry, source allocation, and tail
+cap before DFT.
 
 `--balance-sources` imposes an equal quota across all surviving sources. It is
 not a default source constraint and must be used only with an explicitly
-approved source-quota policy. Source-wise candidate/final frame gaps alone do
-not require equal source counts.
+approved source-quota policy. Without it, source composition is an auditable
+CUR outcome rather than a hard selection constraint.
 
 ## 5. DFT, Dk, Mk, and Ek
 
