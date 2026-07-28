@@ -372,6 +372,27 @@ explicitly approving a 128-atom calculation. Temperature, scale grid,
 pressure grid, trajectory length, and DFT budget remain element- and
 stage-specific.
 
+### 8.2.1 Frozen Clean-FCC D2 NVT Cards
+
+For the active clean-FCC restart only, `02-nvt-round-2` samples the matching
+32-atom seed with `--rep 1 1 1`, the full matching ten-model M1 committee,
+and its matching 200-row D1 `current.db`. The D2 cards are:
+
+| Element | Temperature (K) | NVT scale factors | Rationale |
+|---|---:|---|---|
+| W | 4051.465 | `0.95, 1.00, 1.05, 1.10, 1.15` | A new grid that extends the expanded region; 64 of 100 D1 labels came from scale 1.10. |
+| Ta | 3596.065 | `0.90, 0.925, 0.95, 0.975, 1.00` | A new intermediate grid restricted to the D1 geometry-safe 0.90--1.00 window. |
+| Ti | 2135.265 | `0.95, 0.975, 1.00, 1.025, 1.05` | A new intermediate grid restricted to the D1 geometry-safe 0.95--1.05 window. |
+
+All cards use 50,000 steps, a 1.0 fs timestep, trajectory/log intervals of
+10/1 steps, HAL `tau_r=0.10`, Langevin friction `0.02 fs^-1`, one node with
+five one-core tasks, and a 24-hour allocation. Retain the D1 temperature to
+isolate the required new scale-grid change and test the M1 improvement. The
+severe D1 Ta/Ti collapse evidence does not relax later D2 geometry gates:
+all-frame uncertainty, absolute-U, geometry-first projected-CUR, and DFT
+quantities must be recalibrated independently from each D2 pool. EOS
+references remain validation-only and are not inputs to D2.
+
 ### 8.3 Temperature Reference Data
 
 `src/temperature_table.py` records these normal-pressure phase-change

@@ -1199,3 +1199,346 @@ sbatch --job-name=fcc_d1_dft_<X> --nodes=1 --ntasks=64 --time=24:00:00 \
 One combined immediate `squeue` check was made after W/Ti submission. No
 overwrite environment variable is set. No database merge, M1, or E1 job is
 submitted.
+
+### Ta DFT completion
+
+On the user's completion report, one focused `sacct -X` check found Ta
+Protocol-A DFT job `13444` terminally successful: `COMPLETED 0:0` in
+`00:56:05`. The Ta label DB has not yet been inspected, merged, or published.
+The required next gate is read-only label validation before any Ta D1 database
+transition or M1 submission.
+
+### Ta D1 label validation, merge, publication, and M1 submission
+
+Read-only validation of `Ta_D1_labeled.db` passed before any database change:
+there are exactly 100 selected inputs, manifest tasks, completed VASP task
+directories, and DB rows. Every label uses static Protocol A, including the
+Ta POTCAR SHA-256
+`b94d0231aa338d2b49887428178c5ebac7fa385cbd6154890af94e8013d269f3`.
+The ENMAX is `223.667` eV and generated `ENCUT=290.767` is the documented
+serialization of auto-ENCUT `290.7671` eV. All energies, `(32, 3)` forces,
+and stresses are finite; every 32-atom Ta cell agrees with its selected
+POSCAR source within `5e-9 A`. The D1 cell-energy range is
+`-362.863042630` to `-306.168139950` eV.
+
+The no-overwrite merge preflight confirmed distinct base, label, and output
+paths; absent `updated.db`; a 100-row finite unary-Ta D0 base; and the
+published D0 SHA-256
+`250b1019aa284ad4623cce621f72f9e59b9a0e74dbd2c36bc09d9efc731c9995`.
+The supported merge completed:
+
+```bash
+module load jse && python3 src/vasp_batch_dft.py merge \
+  Ta-potential/fcc-restart/current.db \
+  Ta-potential/fcc-restart/01-nvt-round-1/Ta_D1_labeled.db \
+  Ta-potential/fcc-restart/01-nvt-round-1/updated.db
+```
+
+Read-only validation of the result confirmed 200 finite unary 32-atom Ta
+rows with no EOS metadata, exact D0-prefix/D1-suffix preservation, and
+unchanged base D0 checksum. `updated.db` SHA-256 is
+`69b733947c729bd4aa5685f8598ceb8a4356be80f5f00797dd3b156e051cf95a`.
+It was copied to an exclusive same-directory temporary file, checksum-checked,
+and published with `os.replace`; post-publication validation found the
+200-row `Ta-potential/fcc-restart/current.db` byte-identical to `updated.db`.
+The preserved `updated.db` remains the auditable D1 merge artifact.
+
+The M1 no-overwrite preflight confirmed the published 200-row Ta DB, absent
+`model_versions/M1_from_D1/train-committee/`, absent `fcc-m1-*` scheduler
+outputs, valid template syntax, and `ENERGY["Ta"] = -11.8578`. It used the
+approved one-node, 5-task, 8-CPUs/task, 48-hour resource card and did not set
+`OVERWRITE`. The submitted command was:
+
+```bash
+sbatch --job-name=fcc_m1_Ta --nodes=1 --ntasks=5 --cpus-per-task=8 \
+  --time=48:00:00 \
+  --output=Ta-potential/fcc-restart/slurm_logs/fcc-m1-%j.out \
+  --error=Ta-potential/fcc-restart/slurm_logs/fcc-m1-%j.err \
+  scripts/slurm/run_train_committee.slurm \
+  Ta-potential/fcc-restart/current.db \
+  Ta-potential/fcc-restart/model_versions/M1_from_D1/train-committee \
+  10 5 5000
+```
+
+Ta M1 job `13448` was accepted. Its one immediate `squeue` check reported
+`PENDING (Priority)`; no monitoring loop was started. W/Ti assets were not
+read, changed, or polled during this Ta transition.
+
+### Ti D1 DFT completion and label validation
+
+On the user's completion report, one focused `sacct -X` check found Ti
+Protocol-A DFT job `13446` terminally successful: `COMPLETED 0:0` in
+`01:03:53`. Read-only validation then passed before any Ti database change:
+
+- the selected input directory, manifest, task root, and
+  `Ti_D1_labeled.db` each contain exactly 100 records;
+- every task has a complete OUTCAR and static Protocol-A INCAR;
+- all task POTCARs match the local Ti POTCAR SHA-256
+  `f8e8f1d080d9e9b45e792f1068744b07aba8441d1e7ce11486a5d4c0f5a1479e`;
+  ENMAX is `178.330` eV and generated `ENCUT=231.829` represents the
+  expected auto-ENCUT `231.8290` eV;
+- all 100 labels are finite unary, 3D-periodic, positive-cell 32-atom Ti
+  structures with finite energy, `(32, 3)` forces, and stress;
+- every output cell and wrapped fractional coordinate agrees with its
+  selected POSCAR source within `5e-9 A`, and no EOS/cross-element metadata
+  is present.
+
+The D1 cell-energy range is `-240.622186860` to `-204.253656960` eV.
+Ti `current.db` has not been merged or replaced, and no Ti M1 job was
+submitted: explicit user approval is required for that protected D1
+transition. W job `13445` was not queried.
+
+### Ti D1 merge, publication, and M1 submission
+
+After the user explicitly authorized the Ti D1 transition, no-overwrite
+preflight confirmed distinct base/label/output paths, absent `updated.db`,
+and the 100-row published Ti D0 SHA-256
+`37292ae7baaed45986cc03b51b7eb9dd1b918510f7dcd58a68837ee3ee407acd`.
+The supported merge completed:
+
+```bash
+module load jse && python3 src/vasp_batch_dft.py merge \
+  Ti-potential/fcc-restart/current.db \
+  Ti-potential/fcc-restart/01-nvt-round-1/Ti_D1_labeled.db \
+  Ti-potential/fcc-restart/01-nvt-round-1/updated.db
+```
+
+Validation found exactly 200 finite unary 32-atom Ti rows with no EOS
+metadata. The first 100 records are bytewise-equivalent structure/result
+records from D0, the last 100 are equivalently preserved D1 labels, and the
+D0 base checksum remained unchanged. `updated.db` SHA-256 is
+`f2874ac425d45bacf41c1e78503e7ece08c59c477b7ad219926e32f4bada577b`.
+It was copied to an exclusive same-directory temporary DB, checksum-checked,
+and atomically published using `os.replace`. Post-publication validation
+confirmed the 200-row Ti `current.db` is byte-identical to retained
+`updated.db`.
+
+The Ti M1 no-overwrite preflight confirmed the published 200-row database,
+an absent `model_versions/M1_from_D1/train-committee/`, no existing
+`fcc-m1-*` scheduler outputs, template syntax, and `ENERGY["Ti"] = -7.8951`.
+No `OVERWRITE` setting was used. The approved submission was:
+
+```bash
+sbatch --job-name=fcc_m1_Ti --nodes=1 --ntasks=5 --cpus-per-task=8 \
+  --time=48:00:00 \
+  --output=Ti-potential/fcc-restart/slurm_logs/fcc-m1-%j.out \
+  --error=Ti-potential/fcc-restart/slurm_logs/fcc-m1-%j.err \
+  scripts/slurm/run_train_committee.slurm \
+  Ti-potential/fcc-restart/current.db \
+  Ti-potential/fcc-restart/model_versions/M1_from_D1/train-committee \
+  10 5 5000
+```
+
+Ti M1 job `13450` was accepted. Its one immediate `squeue` check reported
+`PENDING (Resources)`; no monitoring loop was started. W assets were not
+queried or changed.
+
+### Ta M1 completion validation and E1 fixed-reference EOS
+
+The user reported Ta M1 complete and requested the fixed-reference E1 EOS
+evaluation. One focused status check found job `13448` as `COMPLETED 0:0` in
+`00:07:02`. The first artifact scan was incorrect because `fd` respected
+repository ignore patterns (`**/*.jnn`, `**/*.db`, and `**/log`) and showed
+only directories. A corrected `fd -HI` scan found all expected artifacts:
+ten JNNs, trainer scripts, train/test DBs, fold logs, history files, and both
+configured scheduler files. The initial empty-committee report is
+superseded.
+
+The full read-only M1 validation passed:
+
+- all ten folds have one nonempty `0.jnn` through `9.jnn` and
+  `train.nepochs = 5000`;
+- every fold has 180 train and 20 test rows from only the 200-row Ta D1 DB;
+  test coverage is exactly once and train coverage exactly nine times per
+  source row;
+- all final train/test energy and force diagnostics are finite; the mean
+  model test `MAE-F` is `144.4800` meV/A;
+- six of ten models meet the 1.25 train/test energy-MAE ratio criterion.
+  `train-5/5.jnn` is selected with train/test energy MAE
+  `5.055/5.150` meV/atom and ratio `1.01879327399`;
+- the ordered M1 JNN SHA-256 digest is
+  `be228ef3919b114c86dfd4f85285b4d5b373baea1478ebbf6d6b6e6fbbbfd6d7`.
+
+No-overwrite E1 preflight verified absent
+`Ta-potential/fcc-restart/evaluations/E1_M1/`, the unchanged 200-row Ta
+current DB, and fixed reference checksums: metadata
+`16d5f83cd5a994109b17a66846a5091a718cfb6ce61d7f13f19a6e543222dc4f`;
+reference
+`869d901829f0682cb169923b1f0745e8e7503cff5385efb2a84bc53c1a06f4ab`.
+The direct lightweight evaluation completed:
+
+```bash
+module load jse
+python3 src/eos_check_jnn.py \
+  --element Ta \
+  --metadata results/Ta_eos_benchmark/eos_reference/eos_structures.csv \
+  --reference-csv results/Ta_eos_benchmark/eos_reference/eos_reference.csv \
+  --jnn-root Ta-potential/fcc-restart/model_versions/M1_from_D1/train-committee \
+  --model-id E1_M1 \
+  --output-dir Ta-potential/fcc-restart/evaluations \
+  --max-train-test-ratio 1.25
+```
+
+JSE created only its normal inference cache
+`train-5/lib5_449de9df543f18bd.so`; the ten JNN byte digests, current DB,
+and EOS references remain unchanged. E1 validation passed: `jnn_selection`
+has 10 rows/6 eligible, raw and DFT-merged predictions have 57 finite
+19/19/19 bcc/fcc/hcp records, all bcc/fcc/hcp/aggregate metric rows are
+finite, and plots are nonempty (171,543 and 144,211 bytes).
+
+| Metric | E0 M0 (meV/atom) | E1 M1 (meV/atom) | E1 - E0 |
+|---|---:|---:|---:|
+| Aggregate raw MAE | 16.182558 | 66.435829 | +50.253271 |
+| Aggregate phase-aligned MAE | 13.358162 | 8.339454 | -5.018708 |
+
+E1 phase raw/aligned MAEs and grid-minimum volume shifts are: bcc
+`91.344289/13.170284` meV/atom and `-0.180696 A^3/atom`; fcc
+`3.638304/0.385546` and `0.000000`; hcp `104.324893/11.462533` and
+`-0.371370`. The shape metric improves but raw cross-phase energetics
+regress, so preserve E1 and await an explicit scientific decision before D2.
+W and Ti were not queried.
+
+### W D1 DFT completion and label validation
+
+On the user's completion report, one focused `sacct -X` check found W
+Protocol-A DFT job `13445` terminally successful: `COMPLETED 0:0` in
+`02:01:24`. Read-only validation passed before any W database change:
+
+- the selected input directory, manifest, task root, and
+  `W_D1_labeled.db` each contain exactly 100 records;
+- every task has a complete OUTCAR and static Protocol-A INCAR;
+- all task POTCARs match the local W POTCAR SHA-256
+  `c0897285f1b301314dcc12eb838ce8a777aa860795754598b0626cb818170117`;
+  ENMAX is `223.057` eV and generated `ENCUT=289.974` represents the
+  expected auto-ENCUT `289.9741` eV;
+- all 100 labels are finite unary, 3D-periodic, positive-cell 32-atom W
+  structures with finite energy, `(32, 3)` forces, and stress;
+- every output cell and wrapped fractional coordinate agrees with its
+  selected POSCAR source within `5e-9 A`, and no EOS/cross-element metadata
+  is present.
+
+The D1 cell-energy range is `-391.945410290` to `-308.568741220` eV. W
+`current.db` has not been merged or replaced, and no W M1 job was submitted:
+explicit user approval is required for this protected D1 transition.
+
+### W D1 merge, publication, and M1 submission
+
+After the user explicitly authorized the W D1 transition, no-overwrite
+preflight confirmed distinct base/label/output paths, absent `updated.db`,
+and the published 100-row W D0 SHA-256
+`97079cfdf10c025c8887621b378940d18cb6fe9343432a1cc66917df5fb61a7e`.
+The supported merge completed:
+
+```bash
+module load jse && python3 src/vasp_batch_dft.py merge \
+  W-potential/fcc-restart/current.db \
+  W-potential/fcc-restart/01-nvt-round-1/W_D1_labeled.db \
+  W-potential/fcc-restart/01-nvt-round-1/updated.db
+```
+
+Validation found exactly 200 finite unary 32-atom W rows with no EOS
+metadata. The first 100 records exactly preserve D0 and the final 100 exactly
+preserve D1 labels; the D0 base checksum remained unchanged.
+`updated.db` SHA-256 is
+`c98274fb1b798c7fcaa339c8b77d4aeb295805bf200881c037cf4dceaa37e492`.
+It was copied to an exclusive same-directory temporary DB, checksum-checked,
+and atomically published using `os.replace`. Post-publication validation
+confirmed the 200-row W `current.db` is byte-identical to retained
+`updated.db`.
+
+The W M1 no-overwrite preflight confirmed the published 200-row database, an
+absent `model_versions/M1_from_D1/train-committee/`, no `fcc-m1-*` scheduler
+outputs, template syntax, and `ENERGY["W"] = -12.9581`. No `OVERWRITE`
+setting was used. The approved submission was:
+
+```bash
+sbatch --job-name=fcc_m1_W --nodes=1 --ntasks=5 --cpus-per-task=8 \
+  --time=48:00:00 \
+  --output=W-potential/fcc-restart/slurm_logs/fcc-m1-%j.out \
+  --error=W-potential/fcc-restart/slurm_logs/fcc-m1-%j.err \
+  scripts/slurm/run_train_committee.slurm \
+  W-potential/fcc-restart/current.db \
+  W-potential/fcc-restart/model_versions/M1_from_D1/train-committee \
+  10 5 5000
+```
+
+W M1 job `13453` was accepted. Its one immediate `squeue` check reported
+`RUNNING` on `lpsnode03`; no monitoring loop was started.
+
+### W/Ti M1 completion validation and E1 fixed-reference EOS
+
+The user reported both remaining M1 jobs complete and requested the two
+unfinished E1 evaluations. One focused combined `sacct -X` check found Ti
+`13450` `COMPLETED 0:0` in `00:07:24` and W `13453` `COMPLETED 0:0` in
+`00:06:45`.
+
+Both read-only committee/E1 preflights passed:
+
+| Element | Eligible / 10 | Selected M1 JNN | Train/test MAE-E (meV/atom) | Mean test MAE-F (meV/A) | Ordered JNN SHA-256 |
+|---|---:|---|---:|---:|---|
+| W | 4 | `train-3/3.jnn` | 6.418 / 6.151 | 166.5800 | `654d6d044f50aef75702d9eb77bba6ff56b7f888a7aca485bc4fb01ccfb8690e` |
+| Ti | 7 | `train-5/5.jnn` | 3.698 / 3.417 | 110.9860 | `12e4f4c4e5ef45675a1f8ea8b3a794263ed2712d30ed5b168a76df821a93e2e3` |
+
+For each element, all ten JNNs/trainers/logs/train DBs/test DBs are
+nonempty; every trainer specifies 5,000 epochs; folds contain 180 train and
+20 test rows drawn only from the matching 200-row D1 DB; every row appears
+once in test and nine times in train. The matching fixed metadata/reference
+pair has 57 common finite DFT rows with 19 each bcc/fcc/hcp, and the absent
+element-local `evaluations/E1_M1/` path was confirmed before execution.
+
+The two element-isolated direct evaluations completed in parallel:
+
+```bash
+module load jse
+python3 src/eos_check_jnn.py \
+  --element <W|Ti> \
+  --metadata results/<W|Ti>_eos_benchmark/eos_reference/eos_structures.csv \
+  --reference-csv results/<W|Ti>_eos_benchmark/eos_reference/eos_reference.csv \
+  --jnn-root <W|Ti>-potential/fcc-restart/model_versions/M1_from_D1/train-committee \
+  --model-id E1_M1 \
+  --output-dir <W|Ti>-potential/fcc-restart/evaluations \
+  --max-train-test-ratio 1.25
+```
+
+JSE created only normal inference cache libraries:
+`W/train-3/lib3_449de9df543f18bd.so` and
+`Ti/train-5/lib5_449de9df543f18bd.so`. W/Ti current DBs, fixed EOS
+references, and M1 JNN bytes remained unchanged. Both E1 output validators
+passed with 10 selection rows, 57 finite raw and DFT-merged predictions,
+four finite phase/aggregate metric rows, and nonempty plots.
+
+| Element | Aggregate raw MAE E0 -> E1 (meV/atom) | Aggregate aligned MAE E0 -> E1 (meV/atom) |
+|---|---|---|
+| W | 131.064897 -> 64.413224 | 28.027437 -> 21.424392 |
+| Ti | 36.024202 -> 14.103997 | 7.434641 -> 1.962939 |
+
+W phase raw/aligned MAEs and E1 grid-minimum volume shifts are bcc
+`40.853701/35.650159` meV/atom and `-0.316526 A^3/atom`; fcc
+`3.117093/2.179271` and `0.000000`; hcp `149.268877/26.443746` and
+`-0.163382`. Ti values are bcc `7.967100/2.141632` and `0.000000`; fcc
+`1.016604/0.588200` and `0.000000`; hcp `33.328286/3.158984` and
+`0.000000`. Both W/Ti improve in raw and phase-aligned aggregate MAE;
+preserve the results and await explicit D2-stage direction.
+
+### Frozen clean-FCC D2 NVT cards
+
+The user explicitly directed simultaneous, element-isolated D2 sampling,
+superseding the former Ta-only diagnostic hold. `research-plan.md` section
+8.2.1 freezes these cards:
+
+| Element | Round root | Temperature (K) | Scale factors |
+|---|---|---:|---|
+| W | `W-potential/fcc-restart/02-nvt-round-2/` | 4051.465 | `0.95, 1.00, 1.05, 1.10, 1.15` |
+| Ta | `Ta-potential/fcc-restart/02-nvt-round-2/` | 3596.065 | `0.90, 0.925, 0.95, 0.975, 1.00` |
+| Ti | `Ti-potential/fcc-restart/02-nvt-round-2/` | 2135.265 | `0.95, 0.975, 1.00, 1.025, 1.05` |
+
+Each card retains the D1 `1.10*T_m` temperature and execution controls
+(32-atom seed, `--rep 1 1 1`, ten matching M1 JNNs, 50,000 steps, 1.0 fs,
+trajectory/log intervals 10/1, HAL `tau_r=0.10`, friction `0.02`, one node,
+five one-core tasks, 24 hours). This isolates the required new NVT scale-grid
+change while testing the improved M1 committees. W extends the D1 expanded
+region because 64 of 100 D1 labels came from scale 1.10; Ta/Ti introduce
+intermediate scales only within their respective geometry-safe D1 windows.
+The prior Ta/Ti collapse evidence does not relax any later D2 selection
+geometry gate. D2 needs fresh all-frame calibration, and EOS is
+validation-only rather than an input.

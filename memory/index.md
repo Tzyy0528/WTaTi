@@ -53,26 +53,29 @@ finite-output and command-provenance validation.
 - Active clean restart record: `28_fcc_clean_restart/`.
 
 ## Immediate Next Step
-Replacement all-frame score-only jobs W `13429`, Ta `13430`, and Ti `13431`
-completed `0:0`; every replacement 25,005-row CSV passed all-frame,
-provenance, and score-only-output validation. The mandatory M0 mean-test
-force-MAE cutoffs are recomputed as W `0.088824`, Ta `0.063869`, and Ti
-`0.038361` eV/A. The user has superseded the provisional 25/75 saved-frame
-candidate/final decorrelation policy: future clean-D1 selection will not
-apply temporal source gaps. The new selection policy is absolute-U, 80% of
-matching-D0 minimum distance, 115% of matching-D0 normalized periodic
-maximum-empty-sphere metric, current.db-projected CUR, and a p99 tail cap of
-five structures. It uses target 100 for each element and preserves force,
-volume, and source distributions as auditable diagnostics rather than
-automatic hard rejections. After code/documentation updates and a complete
-no-overwrite preflight, clean-D1 selection jobs W `13440`, Ta `13441`, and
-Ti `13442` were submitted. A later focused check found Ta `13441` completed
-while W/Ti were still running; a subsequent focused check found all three
-selection jobs terminally successful. Complete W/Ta/Ti output validation
-passed, with exactly 100 final 32-atom POSCARs for each element. Protocol-A
-DFT jobs are now submitted for the matching selected sets: Ta `13444`
-(`RUNNING` on its focused check), W `13445` (`PENDING`), and Ti `13446`
-(`PENDING` on their one combined immediate check). Do not poll. On a later
-completion request, validate the three element-local label DBs before any
-merge, M1, or E1 step. The deleted D1 score CSVs and all old selection cards
-remain superseded and must not be reused.
+The three clean-D1 selections passed independently and Protocol-A labels are
+submitted only for their matching element-local sets. Ta D1 labels passed
+full validation, were merged in D0-then-D1 order, and were atomically
+published as the 200-row
+`Ta-potential/fcc-restart/current.db` (SHA-256
+`69b733947c729bd4aa5685f8598ceb8a4356be80f5f00797dd3b156e051cf95a`).
+Ta M1 job `13448` completed successfully and passed the ten-model,
+5,000-epoch, 180/20-fold validation. The earlier empty-directory report was
+an `fd` ignore-rule inspection error; generated JNN/DB/log files are ignored
+by `.gitignore` and were present. Ta E1 completed against only the fixed
+57-point EOS reference. Aggregate raw/aligned MAEs are
+`66.435829/8.339454` meV/atom versus E0
+`16.182558/13.358162`: raw cross-phase error regressed while phase-aligned
+shape error improved. No D2 step is started.
+
+Ti D1 labels likewise passed validation, were merged in D0-then-D1 order,
+and were atomically published as the 200-row
+`Ti-potential/fcc-restart/current.db` (SHA-256
+`f2874ac425d45bacf41c1e78503e7ece08c59c477b7ad219926e32f4bada577b`).
+Ti M1 `13450` and W M1 `13453` both completed successfully and passed
+independent ten-model, 5,000-epoch, 180/20-fold validation. Their fixed
+57-point E1 evaluations also passed. Aggregate raw/aligned MAEs (meV/atom)
+are W E0 -> E1 `131.064897/28.027437 -> 64.413224/21.424392`, and Ti E0 ->
+E1 `36.024202/7.434641 -> 14.103997/1.962939`; both metrics improve for W
+and Ti. No D2 step is started without a separate scientific decision. The
+deleted D1 score CSVs and all superseded selection cards must not be reused.

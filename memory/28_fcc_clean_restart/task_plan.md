@@ -47,6 +47,12 @@ correctly expanded 2x2x2 FCC seeds, with no reuse of deleted FCC artifacts.
   (`<X>-potential/fcc-restart/01-nvt-round-1/`) rather than preserving them.
  The replacement D1 uses the original round paths, unchanged seed/M0/scale
   controls, and `T=1.10*T_m`; no parallel `T1p10Tm` output root is retained.
+- The user explicitly directs simultaneous clean-FCC D2 sampling. The frozen
+  M1 NVT cards retain `1.10*T_m` to isolate the new scale-grid change:
+  W `0.95,1.00,1.05,1.10,1.15`; Ta
+  `0.90,0.925,0.95,0.975,1.00`; and Ti
+  `0.95,0.975,1.00,1.025,1.05`. Ta/Ti grids remain inside their D1
+  geometry-safe windows; later D2 geometry gates are not relaxed.
 - The old-D1-derived physical/risk cards are superseded with the deleted D1
   data. New `U_min` values remain M0-log-derived but all later candidate
   counts, physical gates, tail caps, and DFT targets must be recalibrated
@@ -112,6 +118,21 @@ correctly expanded 2x2x2 FCC seeds, with no reuse of deleted FCC artifacts.
   allowed immediate queue check. Resolution: treat this as the expected race,
   make no further status/artifact checks or polling, and let the submitted
   jobs run.
+- The initial Ta M1 artifact scan used `fd` without `--no-ignore`, so
+  `.gitignore` patterns for `*.jnn`, `*.db`, and `log` hid generated files
+  and caused a false empty-directory report. Resolution: rerun the scan with
+  `fd -HI`; all ten folds contain the required JNN, trainer, DB, log, and
+  history artifacts. The earlier empty-committee report is superseded.
+- The first read-only D2 preflight stopped at W because its validator filled
+  a distance-matrix diagonal with infinity and then incorrectly required the
+  whole matrix to be finite. No path was created and no job was submitted.
+  Resolution: check finite off-diagonal distances before masking the
+  diagonal, then rerun the preflight.
+- The corrected D2 preflight then stopped at W because a naive
+  cross-element substring test matched `Ta` within the workspace directory
+  name `WTaTi`. No path was created and no job was submitted. Resolution:
+  test only element-specific path components such as `Ta-potential`, then
+  rerun the read-only preflight.
 
 ## Status
 **Historical Phase 4** - D0 jobs W `13381`, Ta `13382`, and Ti `13383`
@@ -276,8 +297,18 @@ poll. No W/Ti DFT, merge, M1, or E1 job is submitted.
 **W/Ti preflight correction** - W/Ti D1 DFT preflight initially stopped because manually expanded POTCAR
   checksums from abbreviated task notes were incorrect. No output path was
   created and no W/Ti DFT job was submitted. Resolution: read the full
-  checksums directly from the local POTCAR files and rerun the read-only
-  preflight.
+checksums directly from the local POTCAR files and rerun the read-only
+preflight.
+
+**Ta label-validator correction** - the first read-only Ta D1 label validator
+stopped at an INCAR literal-string assertion because VASP writes
+`EDIFF = 1E-5` while the expected text used `1e-05`. The values are
+numerically identical; no workflow asset was changed. Resolution: compare
+numeric INCAR tags numerically and rerun the full read-only validation. The
+second validator then stopped because generated INCAR serializes auto-ENCUT
+`290.7671` as `290.767`; this is output rounding, not a protocol change.
+Resolution: validate printed ENCUT against the auto value with a
+`5e-4` eV formatting tolerance and rerun.
 
 **W/Ti selection validation and DFT transition** - a subsequent focused
 status check found W `13440` and Ti `13442` `COMPLETED 0:0` (elapsed
@@ -300,3 +331,106 @@ ENMAX/auto-ENCUT `178.330/231.8290` eV. W DFT job `13445` and Ti DFT job
 24-hour, eight-rank/eight-worker card as Ta. Their one combined immediate
 check found both `PENDING`. Ta DFT `13444` was `RUNNING` on the preceding
 focused check. Do not poll. No merge, M1, or E1 job is submitted.
+
+**Ta DFT completion gate** - a later focused `sacct` check found Ta Protocol-A
+DFT job `13444` `COMPLETED 0:0` in `00:56:05`. The next required operation is
+read-only validation of the element-local `Ta_D1_labeled.db`: completed VASP
+task/source coverage, Protocol-A metadata, finite energy/forces/stress,
+32-atom geometry agreement, and absence of EOS/cross-element content. Only
+after that validation may a distinct updated D1 DB be merged and atomically
+published as Ta `current.db`; then Ta M1 can be preflighted/submitted. W/Ti
+DFT status is not checked here.
+
+**Latest Phase 5 Ta transition** - Ta D1 label validation passed, then the
+distinct D0 base and D1 labels were merged to the 200-row
+`01-nvt-round-1/updated.db`. The first 100 rows remain D0 and the final 100
+remain D1; all rows are finite unary 32-atom Ta structures with no EOS data.
+After the original D0 checksum was confirmed unchanged, the validated merged
+DB was atomically published as Ta `current.db`; its SHA-256 is
+`69b733947c729bd4aa5685f8598ceb8a4356be80f5f00797dd3b156e051cf95a`.
+The Ta M1 no-overwrite preflight passed with `ENERGY["Ta"] = -11.8578`, an
+absent committee path, 10 models, 5 workers, and 5,000 epochs. Job `13448`
+is submitted with one node, 5 tasks, 8 CPUs/task, and 48 hours; its one
+immediate status was `PENDING (Priority)`. Do not poll. W/Ti labels, DBs,
+and models remain untouched.
+
+**Latest Phase 5 Ti label gate** - on the user's completion report, focused
+`sacct` found Ti Protocol-A DFT job `13446` `COMPLETED 0:0` in `01:03:53`.
+Read-only validation passed: exactly 100 selected sources, manifest tasks,
+complete VASP directories, and label DB rows; static Protocol A, finite
+energy/forces/stress, and source-geometry agreement all hold. Ti D0 remains
+the protected 100-row `current.db`; do not merge, publish, or submit Ti M1
+without explicit authorization. W remains unpolled and independent.
+
+**Latest Phase 5 Ti transition** - after explicit user authorization, Ti D1
+was merged from distinct D0 base and D1 label DBs to the 200-row
+`01-nvt-round-1/updated.db`. The ordered D0 prefix and D1 suffix, finite
+unary 32-atom Ti results, absence of EOS data, and unchanged D0 checksum
+were all validated before publication. The merged DB was atomically
+published as Ti `current.db` (SHA-256
+`f2874ac425d45bacf41c1e78503e7ece08c59c477b7ad219926e32f4bada577b`).
+The Ti M1 no-overwrite preflight passed with `ENERGY["Ti"] = -7.8951`, an
+absent committee path, and the 10-model/5-worker/5,000-epoch policy. Job
+`13450` is submitted with one node, 5 tasks, 8 CPUs/task, and 48 hours; its
+one immediate status was `PENDING (Resources)`. Do not poll. W remains
+untouched and unpolled.
+
+**Latest Phase 5 Ta M1/E1 completion** - the user reported Ta M1 completion
+and requested EOS. Focused `sacct` found job `13448` `COMPLETED 0:0` in
+`00:07:02`; the corrected `fd -HI` artifact scan and full validation confirm
+ten nonempty 5,000-epoch JNN folds with 180/20 train/test partitions, each
+D1 record once in test and nine times in train. Fixed-reference E1 completed
+without overwrite, using eligible `train-5/5.jnn` (train/test energy MAE
+`5.055/5.150` meV/atom). All 57 EOS predictions and phase/all metrics passed
+validation. Aggregate E1 raw/aligned MAEs are `66.435829/8.339454` meV/atom,
+compared to E0 `16.182558/13.358162`; retain this mixed result for the
+scientific decision gate and do not begin D2 automatically.
+
+**Latest Phase 5 W label gate** - on the user's completion report, focused
+`sacct` found W Protocol-A DFT job `13445` `COMPLETED 0:0` in `02:01:24`.
+Read-only validation passed for exactly 100 selected sources, manifest tasks,
+complete VASP directories, and D1 label DB rows; Protocol A, finite results,
+and source geometry all agree. W D0 remains the protected 100-row
+`current.db`; do not merge, publish, or submit W M1 without explicit
+authorization.
+
+**Latest Phase 5 W transition** - after explicit user authorization, the
+distinct W D0 base and D1 label DBs were merged to
+`01-nvt-round-1/updated.db`. The ordered D0 prefix/D1 suffix, finite unary
+32-atom W results, no-EOS content, and unchanged D0 base checksum passed
+validation before atomic publication. W `current.db` is now 200 rows with
+SHA-256 `c98274fb1b798c7fcaa339c8b77d4aeb295805bf200881c037cf4dceaa37e492`.
+The W M1 no-overwrite preflight passed with `ENERGY["W"] = -12.9581` and the
+10-model/5-worker/5,000-epoch policy. Job `13453` is submitted with one
+node, 5 tasks, 8 CPUs/task, and 48 hours; its one immediate status was
+`RUNNING` on `lpsnode03`. Do not poll.
+
+**Latest Phase 5 W/Ti M1/E1 completion** - on the user's completion report,
+focused accounting found Ti `13450` and W `13453` `COMPLETED 0:0` in
+`00:07:24` and `00:06:45`. Both committees passed ten nonempty 5,000-epoch
+model, 180/20-fold, current-D1-coverage, finite-diagnostic, and
+train/test-ratio validation. Their no-overwrite, fixed-reference E1 runs
+completed and passed 57-point 19/19/19 bcc/fcc/hcp output validation. W
+aggregate raw/aligned MAE improves from E0 `131.064897/28.027437` to E1
+`64.413224/21.424392` meV/atom; Ti improves from
+`36.024202/7.434641` to `14.103997/1.962939`. Preserve all results and do
+not begin D2 without a separate scientific decision.
+
+**Current Phase 5 D2 directive** - the user has explicitly directed all
+three elements to proceed independently and concurrently to D2, superseding
+the prior Ta-only diagnostic hold. Before submission, freeze and record one
+new D2 NVT parameter card per element, verify every output path is absent,
+and preflight each command against only its matching 200-row D1 database,
+M1 committee, and 32-atom seed. No EOS reference may be used as a training
+or sampling input.
+
+**Current Phase 5 D2 card** - the cards are frozen in `research-plan.md`
+section 8.2.1 and are ready for read-only no-overwrite preflight. Every card
+uses the matching 32-atom seed with `--rep 1 1 1`, all ten M1 JNNs, 50,000
+steps at 1.0 fs, trajectory/log intervals 10/1, `tau_r=0.10`, friction
+`0.02`, one node/five tasks/24 hours, and no partition, account, GPU, or
+overwrite setting. W uses 4051.465 K and scales
+`0.95,1.00,1.05,1.10,1.15`; Ta uses 3596.065 K and
+`0.90,0.925,0.95,0.975,1.00`; Ti uses 2135.265 K and
+`0.95,0.975,1.00,1.025,1.05`. D2 selection parameters must be recalibrated
+from the D2 pools; no EOS asset is an input.

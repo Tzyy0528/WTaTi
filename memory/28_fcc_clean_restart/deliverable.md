@@ -73,6 +73,34 @@ artifact/isolation validation.
   selected finite unary 32-atom structures. Protocol-A DFT jobs W `13445`
   and Ti `13446` are submitted without overwrite; label validation is
   pending.
+- Ta D1 labels passed full Protocol-A, finite-result, and selected-geometry
+  validation. The 100-row Ta D0 base and 100-row D1 label DB were merged in
+  order, then atomically published as the 200-row Ta `current.db` with
+  SHA-256 `69b733947c729bd4aa5685f8598ceb8a4356be80f5f00797dd3b156e051cf95a`;
+  the distinct `01-nvt-round-1/updated.db` is retained.
+- Ta M1 job `13448` completed successfully with ten valid 5,000-epoch
+  180/20 folds. The initial missing-artifact report was corrected: `fd`
+  respected `.gitignore` and hid generated JNN/DB/log files. E1 then
+  completed on only the fixed Ta EOS reference. Aggregate raw/aligned MAEs
+  are `66.435829/8.339454` meV/atom versus E0
+  `16.182558/13.358162`, so raw cross-phase error regressed but
+  phase-aligned shape error improved.
+- Ti DFT job `13446` completed successfully and its 100 D1 labels passed
+  complete Protocol-A, task/manifest, finite-result, and source-geometry
+  validation. After explicit authorization, Ti D1 was merged and atomically
+  published as a 200-row current DB with SHA-256
+  `f2874ac425d45bacf41c1e78503e7ece08c59c477b7ad219926e32f4bada577b`.
+  Ti M1 job `13450` completed with a valid ten-model committee and E1
+  improves aggregate raw/aligned EOS MAE from `36.024202/7.434641` to
+  `14.103997/1.962939` meV/atom.
+- W DFT job `13445` completed successfully and its 100 D1 labels passed
+  complete Protocol-A, task/manifest, finite-result, and source-geometry
+  validation. After explicit authorization, W D1 was merged and atomically
+  published as a 200-row current DB with SHA-256
+  `c98274fb1b798c7fcaa339c8b77d4aeb295805bf200881c037cf4dceaa37e492`.
+  W M1 job `13453` completed with a valid ten-model committee and E1
+  improves aggregate raw/aligned EOS MAE from `131.064897/28.027437` to
+  `64.413224/21.424392` meV/atom.
 
 ## How to Use / Verify
 - Before D0 generation, verify every new FCC seed is a 32-atom exact `2 2 2`
@@ -88,15 +116,19 @@ artifact/isolation validation.
   directories.
 - `<X>-potential/fcc-restart/00-input/<X>_FCC_D0_labeled.db`: validated
   element-local 100-row D0 Protocol-A label DBs.
-- `<X>-potential/fcc-restart/current.db`: atomically published clean 100-row
-  D0 databases.
+- `<X>-potential/fcc-restart/current.db`: atomically published clean 200-row
+  D1 databases for W, Ta, and Ti.
 - `<X>-potential/fcc-restart/model_versions/M0_from_D0/train-committee/`:
   validated ten-model M0 committees.
 - `<X>-potential/fcc-restart/evaluations/E0_M0/`: clean fixed-reference E0
   predictions, metrics, selection records, and plots.
+- `<X>-potential/fcc-restart/evaluations/E1_M1/`: validated fixed-reference
+  W, Ta, and Ti M1 EOS predictions, selection records, metrics, and plots.
 - `<X>-potential/fcc-restart/01-nvt-round-1/slurm_logs/`: roots for the
   completed lower-temperature D1 scheduler and command records.
 - `<X>-potential/fcc-restart/01-nvt-round-1/md/`: validated replacement D1
   trajectories and per-step summaries.
 - `<X>-potential/fcc-restart/01-nvt-round-1/uncertainty_all_frames.csv`:
   validated replacement all-frame uncertainty scores.
+- `<X>-potential/fcc-restart/01-nvt-round-1/updated.db`: retained validated
+  D0-plus-D1 merge artifacts for W, Ta, and Ti.
