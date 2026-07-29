@@ -1,6 +1,6 @@
 # W-Ta-Ti Unary Active-Learning Workspace
 
-This clean workspace is for three separate NNAP potentials:
+This is an active workspace for three independent unary NNAP potentials:
 
 ```text
 W only   -> W-potential/
@@ -8,75 +8,124 @@ Ta only  -> Ta-potential/
 Ti only  -> Ti-potential/
 ```
 
-It deliberately contains no structures, PAW files, DFT labels, databases,
-models, trajectories, or results. It must not be used to train a combined
-W-Ta-Ti alloy potential.
+It is not a W-Ta-Ti alloy workflow. Databases, seed structures, committees,
+candidate pools, trajectories, selections, DFT work directories, and
+validation results must remain element-local at every stage.
 
-## Included
+## Repository Map
 
-- `research-plan.md`: mandatory scientific workflow.
-- `src/`: portable ASE/NNAP utilities, including the VASP batch backend and
-  absolute-U projected-CUR selector.
-- `scripts/slurm/`: VASP-labeling, committee-training, and MD templates.
-- `docs/`: source map and staged operating guide.
-- `structures/`: empty locations for input and EOS-reference structures.
-- `POTCAR/PBE/`: empty locations for locally licensed PAW-PBE files.
-- `results/` and `memory/`: initially empty output and task-record roots.
+- `research-plan.md`: authoritative scientific protocol, selection policy,
+  validation gates, and stop/continue decisions.
+- `docs/source_function_index.md`: map from a workflow goal to the supported
+  executable entry point.
+- `docs/unary_workflow.md`: detailed staged operating guide and command
+  patterns.
+- `src/`: active ASE/NNAP implementation, including VASP batch labeling and
+  projected-CUR selection.
+- `scripts/slurm/`: protected submission templates for VASP, training, MD,
+  and combined approved MD selection.
+- `<X>-potential/`: element-local generated workflow roots and `current.db`
+  cross-round state for `X = W, Ta, Ti`.
+- `structures/`: supplied seed and fixed EOS-reference structures.
+- `POTCAR/PBE/<X>/POTCAR`: local licensed PAW-PBE inputs; do not commit or
+  redistribute POTCAR files.
+- `results/<X>_eos_benchmark/`: fixed validation-only EOS assets.
+- `memory/`: retained task plans, observations, and deliverables.
 
-## Add These Inputs First
+Generated data already exist in this workspace. They are protected by
+default: do not overwrite, delete, copy between elements, or replace them
+without explicit approval.
 
-```text
-structures/W_benchmark/W-seed.poscar
-structures/W_benchmark/W-<phase>.poscar
-structures/Ta_benchmark/Ta-seed.poscar
-structures/Ta_benchmark/Ta-<phase>.poscar
-structures/Ti_benchmark/Ti-seed.poscar
-structures/Ti_benchmark/Ti-<phase>.poscar
+## Non-Negotiable Data Policy
 
-POTCAR/PBE/W/POTCAR
-POTCAR/PBE/Ta/POTCAR
-POTCAR/PBE/Ti/POTCAR
-```
+- Keep W, Ta, and Ti fully isolated. Never create a mixed-element database,
+  committee, candidate pool, selection, trajectory, or EOS result.
+- Each element's `current.db` is its cross-round training state. New labels
+  are validated and merged only into the matching element-local database.
+- EOS structures, labels, databases, and metrics are validation-only and
+  must never enter `current.db`.
+- New labels use `src/vasp_batch_dft.py` through
+  `scripts/slurm/run_vasp_batch_dft.slurm`; do not use the legacy `nncalc`
+  path.
+- Freeze per-element active-label Protocol A and EOS-reference Protocol B
+  before producing labels. Record PAW identity/checksum, ENCUT, k-point and
+  smearing policies, convergence, relaxation/static choice, and the W/Ta
+  SOC/semicore or Ti spin/valence decisions.
 
-`*-seed.poscar` is the source for initial perturbations. The `*-<phase>.poscar`
-files are fixed, validation-only EOS inputs. They may describe the same
-unrelaxed reference phase but must remain distinct input assets: generated EOS
-scales and EOS labels never enter a training database.
-
-For each of W, Ta, and Ti, bcc, fcc, and hcp are mandatory EOS-validation
-phases. W/Ta use bcc as the primary phase; Ti uses hcp and bcc as primary
-phases. The scale intervals must still be approved separately for every
-element/phase.
-
-## Before Any Calculation
-
-1. Read `research-plan.md` and supply the missing per-element DFT protocol.
-2. Check each supplied POSCAR is periodic, contains exactly one element, and
-   has the intended phase/cell definition.
-3. Check the PAW setup names, checksums, ENMAX values, and POSCAR species
-   order. The VASP backend reads from `POTCAR/PBE/<element>/POTCAR`.
-4. Converge and freeze active-label Protocol A and EOS-reference Protocol B
-   separately for each element. Decide PAW variant, semicore treatment,
-   smearing, spin, and whether SOC is included.
-5. Audit or replace the W/Ta/Ti atomic reference energies in
-   `src/dbselectandtrain.py` so they match Protocol A.
-6. Use the high-temperature W/Ta/Ti targets in `src/temperature_table.py`,
-   set the MD/NPT parameters, and calibrate the absolute-U cutoff and DFT
-   budget.
-
-## Active-Learning Workflow
+## Production Workflow
 
 ```text
-input structures + frozen Protocol A/B
--> D0 -> M0 -> fixed EOS E0
--> MD candidate pool + all-frame scoring
--> calibrated absolute-U cutoff + current.db-projected CUR
--> element-local DFT labels -> Dk -> Mk -> fixed EOS Ek
+frozen Protocol A/B + element-local inputs
+-> D0 -> M0 -> fixed-reference E0
+-> element-local MD/RSS candidates
+-> all-frame committee uncertainty scoring
+-> calibrated absolute-U cutoff
+-> source-wise decorrelation + approved physical/risk gates
+-> current.db-projected, source-constrained CUR + capped p99 U tail
+-> Protocol-A DFT labels -> Dk -> Mk -> fixed-reference Ek
 ```
 
-Run the W, Ta, and Ti sequences independently. Do not invoke the automatic
-`src/ase_md.py` scheduler for production work; follow
-`docs/unary_workflow.md`.
+The required selection chain is:
+
+```text
+current committee
+-> all-frame scoring
+-> element/model-specific absolute-U cutoff
+-> candidate-frame decorrelation
+-> approved geometry/risk gates
+-> current.db-projected CUR
+-> approved extreme-U tail cap
+-> DFT
+```
+
+An absolute-U threshold and tail cap are calibrated independently for each
+element and model version; neither is transferable. Source quotas, force,
+volume, and pressure hard gates require explicit approval rather than being
+assumed defaults.
+
+## Choose the Supported Entry Point
+
+Read `research-plan.md` first, then use
+`docs/source_function_index.md` to select the program:
+
+| Task | Supported route |
+|---|---|
+| Protocol-A DFT labels | `scripts/slurm/run_vasp_batch_dft.slurm` -> `src/vasp_batch_dft.py` |
+| Database merge | `src/vasp_batch_dft.py merge` with distinct base, label, and output DBs |
+| Committee training | `scripts/slurm/run_train_committee.slurm` |
+| Staged NVT/NPT sampling | `scripts/slurm/run_md_round.slurm` |
+| Score/audit/CUR diagnosis or recovery | Separate score-only, audit, and projected-CUR entry points in the source index |
+| Approved combined MD selection | `scripts/slurm/run_md_selection_pipeline.slurm` |
+| Fixed EOS generation/collection/evaluation | `src/eos_reference.py` and `src/eos_check_jnn.py` |
+
+The combined MD-selection runner is an execution convenience only. After an
+element-local target, distance/void gates, and descriptor card are frozen, it
+runs and retains score-only uncertainty, complete geometry audit, and
+projected CUR in one protected allocation. It derives the ten-log `U_min`
+record but does not choose scientific policy or authorize DFT, merge,
+retraining, or EOS evaluation.
+
+Do not use `src/ase_md.py` as a production scheduler. Do not use the
+placeholder `src/temperature_table.py` values for production sampling.
+
+## Before a New Submission
+
+1. Read the current task state in `memory/index.md`, then the relevant task
+   record under `memory/`.
+2. Confirm the element-local inputs, base DB, committee, round path, and
+   output paths. Ensure every protected output path is absent unless an
+   overwrite has been explicitly approved.
+3. For NPT, verify finite stress from every committee model before launch.
+4. Confirm the exact command, SLURM resources, output/error paths, and
+   scientific card. Submit expensive work with `sbatch` or from an active
+   compute allocation, never directly on a login node.
+5. After submission, record the Job ID and make at most one immediate status
+   check unless monitoring is explicitly requested.
+
+The clean-FCC D3 combined-selection task record is
+`memory/32_clean_fcc_D3_md_validation_selection_card/`. Consult it and
+`memory/index.md` for the retained current checkpoint; do not infer later
+DFT, merge, M3, or E3 authorization from a selection submission.
 
 ## Lightweight Checks
 

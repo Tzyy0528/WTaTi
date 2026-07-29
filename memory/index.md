@@ -45,8 +45,11 @@ The documented selection workflow now also has
 `scripts/slurm/run_md_selection_pipeline.slurm`: after an element-local card
 is frozen, it runs score-only uncertainty, geometry audit, and projected CUR
 in one protected allocation while retaining all intermediate artifacts. This
-is recorded in `memory/31_combined_selection_pipeline/`; it has not been
-used for production D3 selection.
+is recorded in `memory/31_combined_selection_pipeline/`. User-approved
+clean-FCC D3 cards are recorded in `memory/32_clean_fcc_D3_md_validation_selection_card/`;
+the production combined selection jobs are W `13519`, Ta `13520`, and Ti
+`13521`. Their one immediate combined status check found all three running
+on `lpsnode02`; no monitoring is active.
 
 ## Active Gate / Blocker
 The clean-FCC E0/E1/E2 review is complete in
@@ -57,8 +60,12 @@ a read-only D2 coverage/selection and full-committee EOS-spread diagnosis.
 The user has explicitly overridden that review hold for an all-element
 clean-FCC D3 launch. Task 30 passed all 30 finite-stress/NPT and no-overwrite
 checks, then submitted D3 jobs W `13513`, Ta `13514`, and Ti `13515`. The
-one immediate queue check found W `PENDING (None)` and Ta/Ti
-`PENDING (Priority)`; no monitoring is active.
+jobs later completed `0:0`, and task 32 validated all 21 NPT sources:
+matching M2-only provenance, seven 5,001-frame finite 32-atom trajectories,
+and seven 50,001-row finite NPT summaries per element. Task 32 then froze
+the target-100 combined selection cards, passed final no-overwrite guards,
+and submitted W `13519`, Ta `13520`, and Ti `13521`; all were running at the
+one allowed immediate status check. No monitoring is active.
 
 ## Standing Constraints
 - Keep W, Ta, and Ti databases, models, pools, trajectories, and outputs
@@ -79,7 +86,7 @@ one immediate queue check found W `PENDING (None)` and Ta/Ti
 - Complete task record: `memory/28_fcc_clean_restart/`.
 
 ## Immediate Next Step
-On a later user status/completion request, make one focused terminal-state
-check and validate all seven D3 NPT sources per element before any scoring.
-Preserve EOS results as validation-only; scoring, selection, DFT, merge, M3,
-and E3 remain unauthorized.
+Wait for a user-requested focused status check or completion report for the
+three D3 combined selections, then validate retained score/audit/CUR artifacts
+before any DFT decision. Preserve EOS results as validation-only; DFT, merge,
+M3, and E3 remain unauthorized.

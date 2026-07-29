@@ -457,6 +457,47 @@ the W/Ta bcc-focused review; Ti proceeds only because of the user's explicit
 override. D3 authorization does not authorize scoring, selection, DFT,
 database merge, M3, or E3. EOS references remain validation-only.
 
+### 8.2.4 Frozen Clean-FCC D3 Combined Selection Cards
+
+After all 21 D3 NPT sources passed validation, the user explicitly approved
+an element-local D3 target of 100 structures for W, Ta, and Ti. Each card
+uses `scripts/slurm/run_md_selection_pipeline.slurm` once, with its matching
+300-row D2 `current.db`, full ten-model M2 committee, and pressure grid
+`1, 5, 10, 20, 30, 40, 50` GPa. It retains all-frame scoring, a complete
+geometry audit, current.db-projected CUR, and final POSCAR provenance; it
+does not authorize the subsequent DFT, merge, M3, or E3 stages.
+
+| Element | `U_min` preflight (eV/A) | Target / tail cap | `d_min` (A) | Maximum normalized void | M2 committee |
+|---|---:|---:|---:|---:|---|
+| W | 0.187770000 | 100 / 5 | 1.695596956 | 0.946305262 | `W-potential/fcc-restart/model_versions/M2_from_D2/train-committee/` |
+| Ta | 0.167500000 | 100 / 5 | 1.775316838 | 0.942271015 | `Ta-potential/fcc-restart/model_versions/M2_from_D2/train-committee/` |
+| Ti | 0.117740000 | 100 / 5 | 1.775270170 | 0.946161232 | `Ti-potential/fcc-restart/model_versions/M2_from_D2/train-committee/` |
+
+Each `U_min` is independently re-derived by the pipeline from the final
+test `MAE-F` values of exactly `train-0/0.jnn` through `train-9/9.jnn`,
+recorded with all ten model/log paths, and is not copied from D2. The
+distance and void limits are the matching fixed clean-D0 `0.80*d_min` and
+`1.15*q_void` gates. The descriptor card is `r_c=6.0`, `n_max=5`,
+`l_max=6`, and similarity `0.99999`. Candidate/final frame gaps are zero;
+do not pass source quotas, force, volume, or pressure hard gates. The runner
+fixes the tail rule to linear p99 and `floor(0.05 * 100) = 5`.
+
+Each independent submission uses one node, one task, 24 hours, and writes
+only below its own `03-npt-round-1/` root:
+
+```text
+uncertainty_all_frames.csv
+geometry_audit.csv
+absolute-u-projected-cur/
+slurm_logs/selection-u-min-<jobid>.txt
+slurm_logs/combined-*-command-<jobid>.sh
+```
+
+All outputs must be absent before submission; no overwrite option is
+permitted. The preflight validates the matching DB checksum/300 rows, exact
+ten M2 JNN digest/logs, seven validated trajectories, absent D3 selection and
+later-stage paths, and isolation from the other two elements.
+
 ### 8.3 Temperature Reference Data
 
 `src/temperature_table.py` records these normal-pressure phase-change
