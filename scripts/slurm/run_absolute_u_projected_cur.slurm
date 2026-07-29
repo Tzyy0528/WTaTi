@@ -30,6 +30,18 @@ Usage:
 
 The job refuses to overwrite the CUR output root. Enabled physical/risk gates
 write `physical_gate_rejections.csv` alongside candidate and CUR provenance.
+
+For a pre-selection geometry audit only:
+  sbatch --output <round_dir>/slurm_logs/geometry-audit-%j.out \
+    scripts/slurm/run_absolute_u_projected_cur.slurm \
+    --audit-only --round-dir <X>-potential/<round> \
+    --u-min <calibrated-U-min> \
+    --min-distance <limit> --max-normalized-void <limit> \
+    --audit-output <round_dir>/geometry_audit.csv
+
+Audit-only mode refuses to overwrite its CSV and applies only absolute-U and
+the periodic distance/normalized-void gates; it writes neither POSCARs nor
+CUR output.
 EOF
 }
 
@@ -53,6 +65,8 @@ ROUND_DIR=""
 ALL_FRAMES=""
 BASE=""
 OUTPUT_ROOT=""
+AUDIT_ONLY="0"
+AUDIT_OUTPUT=""
 U_MIN=""
 TARGET=""
 R_C="6.0"
@@ -78,6 +92,8 @@ while [[ $# -gt 0 ]]; do
         --all-frames) ALL_FRAMES="$2"; shift 2 ;;
         --base) BASE="$2"; shift 2 ;;
         --output-root) OUTPUT_ROOT="$2"; shift 2 ;;
+        --audit-only) AUDIT_ONLY="1"; shift ;;
+        --audit-output) AUDIT_OUTPUT="$2"; shift 2 ;;
         --u-min) U_MIN="$2"; shift 2 ;;
         --target) TARGET="$2"; shift 2 ;;
         --r-c) R_C="$2"; shift 2 ;;
@@ -101,7 +117,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ -z "$ROUND_DIR" || -z "$BASE" || -z "$OUTPUT_ROOT" || -z "$U_MIN" || -z "$TARGET" ]]; then
+if [[ "$AUDIT_ONLY" == "1" ]]; then
+    if [[ -z "$ROUND_DIR" || -z "$U_MIN" || -z "$AUDIT_OUTPUT" ]]; then
+        echo "--audit-only requires --round-dir, --u-min, and --audit-output." >&2
+        usage
+        exit 2
+    fi
+elif [[ -z "$ROUND_DIR" || -z "$BASE" || -z "$OUTPUT_ROOT" || -z "$U_MIN" || -z "$TARGET" ]]; then
     echo "--round-dir, --base, --output-root, --u-min, and --target are required." >&2
     usage
     exit 2
@@ -109,11 +131,19 @@ fi
 if [[ -z "$ALL_FRAMES" ]]; then
     ALL_FRAMES="$ROUND_DIR/uncertainty_all_frames.csv"
 fi
-if [[ ! -d "$ROUND_DIR" || ! -f "$ALL_FRAMES" || ! -f "$BASE" ]]; then
-    echo "Missing round directory, all-frame CSV, or base database." >&2
+if [[ ! -d "$ROUND_DIR" || ! -f "$ALL_FRAMES" ]]; then
+    echo "Missing round directory or all-frame CSV." >&2
     exit 1
 fi
-if [[ -e "$OUTPUT_ROOT" ]]; then
+if [[ "$AUDIT_ONLY" == "1" ]]; then
+    if [[ -e "$AUDIT_OUTPUT" ]]; then
+        echo "Refusing to overwrite existing geometry audit: $AUDIT_OUTPUT" >&2
+        exit 1
+    fi
+elif [[ ! -f "$BASE" ]]; then
+    echo "Missing base database: $BASE" >&2
+    exit 1
+elif [[ -e "$OUTPUT_ROOT" ]]; then
     echo "Refusing to overwrite existing CUR output: $OUTPUT_ROOT" >&2
     exit 1
 fi
@@ -129,17 +159,23 @@ cmd=(
     python3 src/absolute_u_projected_cur_selection.py
     --round-dir "$ROUND_DIR"
     --all-frames "$ALL_FRAMES"
-    --base "$BASE"
-    --output-root "$OUTPUT_ROOT"
     --u-min "$U_MIN"
     --candidate-frame-gap "$CANDIDATE_FRAME_GAP"
-    --target "$TARGET"
     --final-frame-gap "$FINAL_FRAME_GAP"
-    --r-c "$R_C"
-    --n-max "$N_MAX"
-    --l-max "$L_MAX"
-    --similarity-threshold "$SIMILARITY_THRESHOLD"
 )
+if [[ "$AUDIT_ONLY" == "1" ]]; then
+    cmd+=(--audit-only --audit-output "$AUDIT_OUTPUT")
+else
+    cmd+=(
+        --base "$BASE"
+        --output-root "$OUTPUT_ROOT"
+        --target "$TARGET"
+        --r-c "$R_C"
+        --n-max "$N_MAX"
+        --l-max "$L_MAX"
+        --similarity-threshold "$SIMILARITY_THRESHOLD"
+    )
+fi
 if [[ "$BALANCE_SOURCES" == "1" ]]; then
     cmd+=(--balance-sources)
 fi

@@ -101,6 +101,58 @@ artifact/isolation validation.
   W M1 job `13453` completed with a valid ten-model committee and E1
   improves aggregate raw/aligned EOS MAE from `131.064897/28.027437` to
   `64.413224/21.424392` meV/atom.
+- Frozen clean-FCC D2 NVT cards are recorded in `research-plan.md` section
+  8.2.1. Read-only no-overwrite preflight passed for all matching 200-row D1
+  DBs, 32-atom seeds, ten-model M1 committees, and absent D2/M2/E2 outputs.
+  D2 jobs W `13456`, Ta `13457`, and Ti `13458` were then submitted
+  independently; the one immediate check found W/Ta running and Ti pending.
+  Do not poll.
+- All D2 jobs subsequently completed `0:0` and all 15 element-isolated
+  trajectories passed full provenance, frame-count, finite-result, unary,
+  PBC, positive-cell, and summary validation. The next stage is M1
+  all-frame score-only evaluation; no D2 score, selection, label, M2, or E2
+  output exists yet.
+- No-overwrite score-only preflight then passed for all D2 trajectories and
+  matching M1 committees. Independent full-frame scoring jobs W `13462`, Ta
+  `13463`, and Ti `13464` are submitted; one immediate combined check found
+  all pending. Do not poll.
+- All three D2 score-only jobs subsequently completed `0:0`; their CSVs pass
+  exact schema, source/frame/equilibration, finite-score, provenance, and
+  score-only-output validation (25,005 all-frame and 22,505 production rows
+  per element). D2 selection calibration remains the next unsatisfied gate.
+- The D2 geometry audits completed successfully and passed full
+  post-`U_min` coverage/provenance/periodic-gate validation. Frozen D2 CUR
+  cards are W `12,813 / 1.582394200`, Ta `21,403 / 2.762254279`, and Ti
+  `19,420 / 0.872469347` for geometry-valid candidates / p99 U (eV/A), all
+  with 100-label target and tail cap 5. Actual CUR selection and DFT remain
+  unsubmitted.
+- User-authorized D2 CUR jobs W `13469`, Ta `13470`, and Ti `13471` are
+  submitted after strict no-overwrite preflight; active monitoring continues
+  only until validated CUR outputs lead to DFT submission.
+- All D2 CUR jobs completed `0:0`; their candidates, rejections, selected
+  POSCARs, current-DB-projected CUR provenance, tail caps, and source
+  distributions passed full validation. A VASP round-trip-stable periodic
+  void calculation was added and verified before DFT.
+- Protocol-A D2 DFT jobs W `13477`, Ta `13478`, and Ti `13479` are submitted
+  with independent selected inputs, output DBs, and work roots. Monitoring
+  stops after their one immediate pending-status check by user instruction.
+- W/Ta DFT completed and validated; their D2 100-label additions were merged
+  and atomically published to 300-row current DBs. M2 jobs `13495` /
+  `13496` completed and their ten 5,000-epoch 270/30-fold committees passed
+  validation; fixed-reference E2 remains unrun.
+- Ti retry job `13494` completed after its one transient VASP failure. Its
+  aggregate 100-row D2 label DB now passes complete Protocol-A, task,
+  finite-result, and source-geometry validation, while Ti `current.db`
+  was subsequently authorized for merge. The D0/D1/D2 100/100/100 merge
+  passed validation and was atomically published as the 300-row Ti
+  `current.db` (SHA-256
+  `cfd5f2f5141c46f7b3636b2eb70d65b71d814e0fa4658c51aaa8ac44d2eb9196`).
+  Ti M2 job `13512` completed and passed committee validation.
+- All independent clean-FCC D2 workflows now complete through M2/E2. The
+  fixed-reference E2 aggregate raw/aligned EOS MAEs are W
+  `67.567137/23.830581`, Ta `51.670502/9.654377`, and Ti
+  `17.053634/3.492649` meV/atom. Outputs are isolated under each
+  `<X>-potential/fcc-restart/evaluations/E2_M2/`; no D3 work has started.
 
 ## How to Use / Verify
 - Before D0 generation, verify every new FCC seed is a 32-atom exact `2 2 2`
@@ -132,3 +184,13 @@ artifact/isolation validation.
   validated replacement all-frame uncertainty scores.
 - `<X>-potential/fcc-restart/01-nvt-round-1/updated.db`: retained validated
   D0-plus-D1 merge artifacts for W, Ta, and Ti.
+- `<X>-potential/fcc-restart/02-nvt-round-2/slurm_logs/`: D2 scheduler-log
+  roots created after no-overwrite preflight.
+- `src/absolute_u_projected_cur_selection.py`: protected audit-only periodic
+  geometry mode for pre-selection, post-`U_min` calibration.
+- `scripts/slurm/run_absolute_u_projected_cur.slurm`: audit-only submission
+  support with no-overwrite geometry-audit output protection.
+- `docs/unary_workflow.md`: required geometry-audit stage before D2 CUR-card
+  calibration.
+- `research-plan.md`: frozen clean-FCC D2 selection cards and independent
+  DFT-budget rationale.

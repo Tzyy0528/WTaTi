@@ -1,0 +1,15 @@
+group,source,uncertainty_layer,count
+source,scale-0p9,,29
+source,scale-0p925,,6
+source,scale-0p95,,8
+source,scale-0p975,,13
+source,scale-1,,44
+uncertainty_layer,,U-below-tail,95
+uncertainty_layer,,U-ge-tail,5
+source_layer,scale-0p9,U-below-tail,26
+source_layer,scale-0p9,U-ge-tail,3
+source_layer,scale-0p925,U-below-tail,4
+source_layer,scale-0p925,U-ge-tail,2
+source_layer,scale-0p95,U-below-tail,8
+source_layer,scale-0p975,U-below-tail,13
+source_layer,scale-1,U-below-tail,44

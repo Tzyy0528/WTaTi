@@ -88,9 +88,27 @@ files are not created. Submit this through
 sampling. Use their arithmetic mean, converted from meV/A to eV/A; do not set
 it from an MD-pool percentile. Recalculate it independently for every element
 and round. Record all ten values, the aggregation rule, model paths, and
-numeric result. Then determine the total
-target and CUR descriptor
-parameters before submitting the
+numeric result. Before freezing the target, perform a protected full
+post-`U_min` geometry audit through
+`scripts/slurm/run_absolute_u_projected_cur.slurm`:
+
+```bash
+sbatch --output <X>-potential/01-nvt-round-1/slurm_logs/geometry-audit-%j.out \
+  scripts/slurm/run_absolute_u_projected_cur.slurm \
+  --audit-only \
+  --round-dir <X>-potential/01-nvt-round-1 \
+  --all-frames <X>-potential/01-nvt-round-1/uncertainty_all_frames.csv \
+  --u-min <calibrated-U-min> \
+  --min-distance <0.80*D0-min-distance-A> \
+  --max-normalized-void <1.15*D0-max-q-void> \
+  --audit-output <X>-potential/01-nvt-round-1/geometry_audit.csv
+```
+
+Audit-only mode uses zero candidate/final frame gaps and no force, volume,
+quota, or source hard gate. It atomically writes one geometry record for every
+post-`U_min` production frame, but writes no candidate POSCARs and performs
+no CUR. Validate coverage and gate values, then determine the total target,
+p99 tail threshold/cap, and CUR descriptor parameters before submitting the
 following CUR command through `scripts/slurm/run_absolute_u_projected_cur.slurm`:
 
 ```bash
@@ -122,10 +140,50 @@ distributions, and parameter provenance. Validate its U range, distance/void
 records, descriptor/CUR records, finite geometry, source allocation, and tail
 cap before DFT.
 
+The empty-sphere calculation removes only sub-`1e-12`-cell-scale numerical
+cell components before periodic Delaunay construction. This makes the metric
+invariant to harmless VASP direct-coordinate round trips while leaving
+physical triclinic cell components unchanged.
+
 `--balance-sources` imposes an equal quota across all surviving sources. It is
 not a default source constraint and must be used only with an explicitly
 approved source-quota policy. Without it, source composition is an auditable
 CUR outcome rather than a hard selection constraint.
+
+### Combined execution after a frozen selection card
+
+The preceding separate commands remain the recovery/calibration path. When an
+element-local DFT target, minimum-distance limit, normalized-void limit, and
+descriptor card are already approved, execute the same score/audit/CUR flow
+in one SLURM allocation:
+
+```bash
+sbatch --nodes=1 --ntasks=1 --time=24:00:00 \
+  --output=<X>-potential/<round>/slurm_logs/select-%j.out \
+  --error=<X>-potential/<round>/slurm_logs/select-%j.err \
+  scripts/slurm/run_md_selection_pipeline.slurm \
+  --element <X> \
+  --round-dir <X>-potential/<round> \
+  --base <X>-potential/current.db \
+  --jnn-glob '<X>-potential/model_versions/Mk_from_Dk/train-committee/train-*/*.jnn' \
+  --mode npt --pressures 1 5 10 20 30 40 50 \
+  --target <approved-DFT-budget> \
+  --min-distance <0.80*D0-min-distance-A> \
+  --max-normalized-void <1.15*D0-max-q-void> \
+  --r-c 6.0 --n-max 5 --l-max 6 --similarity-threshold 0.99999 \
+  --equilibration-fraction 0.10
+```
+
+For NVT, replace `--mode npt --pressures ...` with `--mode nvt --scales ...`.
+The runner requires exactly ten matching committee models, derives `U_min`
+from their final test `MAE-F` logs, writes the model-value record below
+`slurm_logs/`, fixes p99/5%-cap tail policy, and retains
+`uncertainty_all_frames.csv`, `geometry_audit.csv`, and the full protected
+CUR output. It refuses all pre-existing outputs and stops before CUR if the
+audit coverage, finite geometry, or geometry-valid target count fails.
+
+This is not permission to choose a target or relax gates automatically, and
+it does not authorize DFT, merge, training, or EOS.
 
 ## 5. DFT, Dk, Mk, and Ek
 

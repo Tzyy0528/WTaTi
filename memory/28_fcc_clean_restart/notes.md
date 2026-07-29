@@ -1542,3 +1542,583 @@ intermediate scales only within their respective geometry-safe D1 windows.
 The prior Ta/Ti collapse evidence does not relax any later D2 selection
 geometry gate. D2 needs fresh all-frame calibration, and EOS is
 validation-only rather than an input.
+
+### D2 no-overwrite preflight and submission
+
+The first two read-only validator attempts stopped without creating an output:
+the first treated intentionally diagonal-masked pair distances as non-finite,
+and the second matched `Ta` within the workspace name `WTaTi`. The corrected
+third pass checked finite pair distances before masking and element-specific
+`<X>-potential` path components. It passed for all elements:
+
+- each recorded D1 `current.db` checksum has exactly 200 finite unary,
+  32-atom, 3D-periodic rows with finite energy and forces;
+- each recorded seed checksum is finite, positive-volume, 32-atom, unary,
+  and 3D-periodic;
+- exactly ten nonempty, literal `train-0/0.jnn` through `train-9/9.jnn`
+  M1 paths occur only below the matching element's committee;
+- the D2 round root (therefore all local MD, score, selection, and DFT
+  paths), `M2_from_D2`, and `E2_M2` were absent for every element;
+- the frozen cards have positive distinct scales and the required
+  `--rep 1 1 1`, 50,000/1.0/10/1/0.10/0.02 controls, one node/five tasks/24
+  hours, and no partition, account, GPU, `OVERWRITE`, or `FORCE_PREPARE`
+  setting; `run_md_round.slurm` syntax and `md_worker.py` compilation passed.
+
+Only the three absent `02-nvt-round-2/slurm_logs/` directories were created
+after this pass. Each following submission passed ten literal, matching JNN
+paths `.../train-0/0.jnn` through `.../train-9/9.jnn` (not a glob), plus the
+stated parameter card:
+
+```text
+W  job 13456: sbatch --job-name=fcc_d2_W --nodes=1 --ntasks=5 --time=24:00:00
+   --output=W-potential/fcc-restart/02-nvt-round-2/slurm_logs/fcc-d2-%j.out
+   --error=W-potential/fcc-restart/02-nvt-round-2/slurm_logs/fcc-d2-%j.err
+   scripts/slurm/run_md_round.slurm --ensemble nvt
+   --round-dir W-potential/fcc-restart/02-nvt-round-2
+   --poscar structures/W_fcc_restart/W-fcc-seed-32.poscar --rep 1 1 1
+   --temperature 4051.465 --scale-factors 0.95 1.00 1.05 1.10 1.15
+   --tau-r 0.10 --steps 50000 --timestep 1.0 --write-interval 10
+   --log-interval 1 --trajectory multi_nnap_md.xyz
+   --summary energy_forces_summary.dat --friction 0.02 --jnn-paths <ten W M1 paths>
+
+Ta job 13457: identical resources/options under Ta-potential with
+   --round-dir Ta-potential/fcc-restart/02-nvt-round-2
+   --poscar structures/Ta_fcc_restart/Ta-fcc-seed-32.poscar
+   --temperature 3596.065 --scale-factors 0.90 0.925 0.95 0.975 1.00
+   and <ten Ta M1 paths>.
+
+Ti job 13458: identical resources/options under Ti-potential with
+   --round-dir Ti-potential/fcc-restart/02-nvt-round-2
+   --poscar structures/Ti_fcc_restart/Ti-fcc-seed-32.poscar
+   --temperature 2135.265 --scale-factors 0.95 0.975 1.00 1.025 1.05
+   and <ten Ti M1 paths>.
+```
+
+One combined immediate `squeue` check, after all submissions, reported W
+`13456` and Ta `13457` `RUNNING` on `lpsnode02`; Ti `13458` was `PENDING`
+with no assigned node. Do not poll. On a later user request, validate all
+five sources per element before independent M1 all-frame scoring and fresh
+D2 calibration.
+
+### D2 completion and trajectory validation
+
+On the user's completion report, one focused accounting check found all
+three submitted jobs terminally successful:
+
+| Element | Job | State / exit | Elapsed |
+|---|---:|---|---:|
+| W | `13456` | `COMPLETED / 0:0` | `00:50:05` |
+| Ta | `13457` | `COMPLETED / 0:0` | `00:50:10` |
+| Ti | `13458` | `COMPLETED / 0:0` | `00:48:59` |
+
+Read-only validation passed for all 15 sources. Every expected scale source
+has nonempty `command.sh`, `log`, `multi_nnap_md.xyz`, and
+`energy_forces_summary.dat`; the command uses only the matching 32-atom seed,
+`--rep 1 1 1`, exact D2 temperature/scale/control values, and the literal
+ten-model matching M1 list. Every trajectory has 5,001 finite unary
+32-atom/PBC/positive-cell frames with finite energy and `(32,3)` forces;
+every summary has 50,001 consecutive steps, eight finite columns, and the
+expected 1 fs time grid. The matching D1 `current.db` checksums are
+unchanged; `uncertainty_all_frames.csv`, selection/DFT/update outputs,
+`M2_from_D2`, and `E2_M2` remain absent.
+
+| Element | Volume/atom range (A^3) | Minimum distance (A) | Instant temperature range (K) |
+|---|---:|---:|---:|
+| W | 13.635636--24.187897 | 1.797077 | 2077.616--7147.939 |
+| Ta | 13.232491--18.151565 | 1.560677 | 1761.188--6236.615 |
+| Ti | 14.871902--20.079995 | 1.624817 | 1046.293--3880.867 |
+
+The next required stage is independent M1 full-frame, score-only evaluation
+via `scripts/slurm/run_uncertainty_scoring.slurm`. It must use all five D2
+trajectories and all ten matching M1 JNNs to write only
+`02-nvt-round-2/uncertainty_all_frames.csv` (25,005 rows per element).
+After terminal completion, validate the CSVs, recalculate every M1
+mean-test-`MAE-F` absolute-U cutoff, and then calibrate the D2
+geometry-first projected-CUR card. No D1 numerical U/tail/candidate/budget
+value is carried forward.
+
+### D2 all-frame score-only preflight and submission
+
+The read-only scoring preflight passed independently for W, Ta, and Ti:
+their D1 `current.db` checksum/200-row identity is unchanged; the five
+validated D2 trajectories occur at only the frozen scale list; and the
+quoted matching M1 glob resolves to exactly the ten nonempty
+`train-0/0.jnn` through `train-9/9.jnn` paths below that element alone.
+`uncertainty_all_frames.csv`, score-command/scheduler outputs, selection,
+DFT-label/update, M2, and E2 paths were absent. The scorer template syntax,
+scorer compilation, JSE command, and SLURM commands passed. No partition,
+account, GPU, `OVERWRITE`, or `FORCE_PREPARE` setting is used.
+
+The submitted protected cards are:
+
+```text
+W  job 13462: sbatch --job-name=fcc_d2_score_W --nodes=1 --ntasks=1 --time=24:00:00
+   --output=W-potential/fcc-restart/02-nvt-round-2/slurm_logs/fcc-d2-score-%j.out
+   --error=W-potential/fcc-restart/02-nvt-round-2/slurm_logs/fcc-d2-score-%j.err
+   scripts/slurm/run_uncertainty_scoring.slurm
+   --round-dir W-potential/fcc-restart/02-nvt-round-2
+   --jnn-glob 'W-potential/fcc-restart/model_versions/M1_from_D1/train-committee/train-*/*.jnn'
+   --mode nvt --scales 0.95 1.00 1.05 1.10 1.15
+   --trajectory-name multi_nnap_md.xyz --equilibration-fraction 0.10
+   --all-frames-csv W-potential/fcc-restart/02-nvt-round-2/uncertainty_all_frames.csv
+   --progress-interval 500
+
+Ta job 13463: identical resource/score-only options under Ta-potential with
+   --round-dir Ta-potential/fcc-restart/02-nvt-round-2
+   --jnn-glob 'Ta-potential/fcc-restart/model_versions/M1_from_D1/train-committee/train-*/*.jnn'
+   --scales 0.90 0.925 0.95 0.975 1.00
+   --all-frames-csv Ta-potential/fcc-restart/02-nvt-round-2/uncertainty_all_frames.csv
+
+Ti job 13464: identical resource/score-only options under Ti-potential with
+   --round-dir Ti-potential/fcc-restart/02-nvt-round-2
+   --jnn-glob 'Ti-potential/fcc-restart/model_versions/M1_from_D1/train-committee/train-*/*.jnn'
+   --scales 0.95 0.975 1.00 1.025 1.05
+   --all-frames-csv Ti-potential/fcc-restart/02-nvt-round-2/uncertainty_all_frames.csv
+```
+
+One combined immediate `squeue` check, after all three submissions, found W
+`13462`, Ta `13463`, and Ti `13464` `PENDING`; Ta/Ti show `Priority`, and W
+has no assigned node. Do not poll. After terminal completion, each CSV must
+have 25,005 all-frame records and 22,505 post-equilibration records before
+fresh D2 calibration.
+
+### D2 score-only completion and CSV validation
+
+On the user's completion report, one focused accounting check found all
+three score-only jobs terminally successful:
+
+| Element | Job | State / exit | Elapsed |
+|---|---:|---|---:|
+| W | `13462` | `COMPLETED / 0:0` | `00:22:50` |
+| Ta | `13463` | `COMPLETED / 0:0` | `00:23:12` |
+| Ti | `13464` | `COMPLETED / 0:0` | `00:22:55` |
+
+The first read-only CSV validator stopped before completing W because it
+compared `--scales` formatting literally (`1.00` versus `1`); no workflow
+asset changed. The corrected numeric comparison passed all three CSVs:
+exactly the 20 score-only fields, 25,005 finite rows, five expected sources
+with consecutive frames 0--5,000, 500 discarded plus 4,501 production frames
+per source, and 22,505 production frames per element. All provenance,
+matching M1-glob, scale, source path, force/volume, and false/empty
+score-only selection-field checks passed. D1 checksums are unchanged and
+selection/DFT/update/M2/E2 outputs remain absent.
+
+| Element | All-frame U min / mean / max (eV/A) | Production U min / mean / max (eV/A) |
+|---|---|---|
+| W | `3.3098408e-10 / 0.68494819 / 7.7173553` | `0.21635417 / 0.68981226 / 7.7173553` |
+| Ta | `1.9595745e-09 / 0.50940382 / 13.973128` | `0.14126667 / 0.51170479 / 13.973128` |
+| Ti | `9.3841545e-10 / 0.30272537 / 3.3472817` | `0.082122772 / 0.31061092 / 3.3472817` |
+
+The next operation is read-only D2-only calibration: parse each matching
+ten-model M1 final test `MAE-F` value for `U_min`, then audit the 22,505
+production frames against the unchanged D0 periodic distance/normalized-void
+definitions. Freeze element-specific candidate counts, p99 tail caps, DFT
+budgets, and projected-CUR cards only from those D2 results. No D1 numerical
+selection parameter is transferable.
+
+### D2 `U_min` extraction and post-cutoff audit scope
+
+The final `MAE-F: train | test` line was extracted from each matching
+`train-{0..9}/log` by converting carriage returns to newlines and retaining
+the final line. This uses the required right-hand (test) value without
+treating terminal progress updates as ordinary line-oriented log records.
+
+| Element | Ordered final M1 test `MAE-F` (meV/A), train-0 through train-9 | Mean (meV/A) | D2 `U_min` (eV/A) |
+|---|---|---:|---:|
+| W | 161.60, 162.30, 158.80, 155.80, 179.90, 162.40, 169.20, 177.70, 161.60, 176.50 | 166.580000 | 0.166580000 |
+| Ta | 138.60, 134.90, 145.50, 144.70, 166.70, 124.90, 148.80, 157.80, 140.90, 142.00 | 144.480000 | 0.144480000 |
+| Ti | 104.90, 90.81, 101.10, 133.50, 142.20, 89.00, 121.30, 113.00, 92.75, 121.30 | 110.986000 | 0.110986000 |
+
+The matching score CSVs contain 22,505 production frames each. Applying only
+the frozen D2 `U_min` leaves:
+
+| Element | Post-`U_min` frames | Per-source counts in frozen scale order |
+|---|---:|---|
+| W | 22,505 | 0.95: 4,501; 1.00: 4,501; 1.05: 4,501; 1.10: 4,501; 1.15: 4,501 |
+| Ta | 22,497 | 0.90: 4,501; 0.925: 4,501; 0.95: 4,501; 0.975: 4,499; 1.00: 4,495 |
+| Ti | 22,474 | 0.95: 4,501; 0.975: 4,501; 1.00: 4,470; 1.025: 4,501; 1.05: 4,501 |
+
+The D2 geometry audit must cover precisely these post-`U_min` records with
+zero candidate/final gaps and no force, volume, quota, or source hard gate.
+The selector's existing `write_candidate_poscars()` applies the periodic
+minimum-distance and normalized-empty-sphere calculations only during a
+full selection transaction. A protected audit-only mode is needed to create
+durable geometry records without writing candidate POSCARs or performing CUR
+with an uncalibrated DFT target.
+
+### D2 protected geometry-audit implementation and submission
+
+`src/absolute_u_projected_cur_selection.py` now has a protected
+`--audit-only --audit-output <new.csv>` mode. It uses the same periodic
+minimum-distance and Delaunay empty-sphere functions as candidate extraction,
+requires zero candidate/final frame gaps and no force/volume/tail/quota
+policy, atomically writes one record per post-`U_min` frame, and refuses an
+existing output or temporary sidecar. It writes no candidate POSCAR, CUR,
+selection, or database output. The selection template accepts the matching
+audit-only card. `docs/unary_workflow.md` documents the required audit before
+freezing a CUR target.
+
+Checks passed before submission:
+
+```text
+python3 -m py_compile src/*.py
+bash -n scripts/slurm/run_absolute_u_projected_cur.slurm
+module load jse && python3 src/absolute_u_projected_cur_selection.py --help
+git diff --check
+```
+
+A JSE one-frame in-memory W audit also passed with
+`d_min=2.186666740 A`, `q_void=0.806444516`, and a passed gate status.
+
+The no-overwrite preflight reconfirmed the exact element-local D1 DB
+checksums/200-row count, the `25,005/22,505` score coverage, the post-U
+counts above, and absence of every output
+`02-nvt-round-2/geometry_audit.csv`, its temporary sidecar, and
+`absolute-u-projected-cur/` root. The independent submitted cards are:
+
+| Element | Job | `U_min` (eV/A) | `d_min` (A) | max `q_void` | Audit output |
+|---|---:|---:|---:|---:|---|
+| W | `13465` | 0.166580000 | 1.695596956 | 0.946305262 | `W-potential/fcc-restart/02-nvt-round-2/geometry_audit.csv` |
+| Ta | `13466` | 0.144480000 | 1.775316838 | 0.942271015 | `Ta-potential/fcc-restart/02-nvt-round-2/geometry_audit.csv` |
+| Ti | `13467` | 0.110986000 | 1.775270170 | 0.946161232 | `Ti-potential/fcc-restart/02-nvt-round-2/geometry_audit.csv` |
+
+Every job requests one node, one task, and 24 hours, with no partition,
+account, GPU, or overwrite option. All pass explicit zero candidate/final
+gaps, matching all-frame CSVs, and only their element-local U/distance/void
+thresholds. The one immediate combined `squeue` check found W `PENDING
+(None)` and Ta/Ti `PENDING (Priority)`. Do not poll.
+
+### D2 geometry-audit completion, validation, and frozen CUR cards
+
+On the user's completion report, a single focused accounting query found all
+audit jobs terminally successful: W `13465` `COMPLETED 0:0` in `00:32:47`,
+Ta `13466` `COMPLETED 0:0` in `00:32:20`, and Ti `13467` `COMPLETED 0:0` in
+`00:32:29`.
+
+The read-only validator required the exact 17-column audit schema; a
+one-to-one, duplicate-free match to every post-`U_min` score record; matching
+uncertainty and trajectory provenance; 32 atoms; finite positive
+uncertainty/volume/force/distance/void fields; and gate status/reasons
+recomputed from the frozen limits. It passed for all elements:
+
+| Element | Audit records | Geometry-valid | Rejected (distance / both / void) | Linear p99 `U_tail` (eV/A) |
+|---|---:|---:|---:|---:|
+| W | 22,505 | 12,813 | 0 / 0 / 9,692 | 1.582394200 |
+| Ta | 22,497 | 21,403 | 89 / 1 / 1,004 | 2.762254279 |
+| Ti | 22,474 | 19,420 | 117 / 9 / 2,928 | 0.872469347 |
+
+W geometry-valid source counts are 4,409 (0.95), 4,423 (1.00), 3,506
+(1.05), 475 (1.10), and 0 (1.15). Ta counts are 4,236, 4,289, 4,290,
+4,259, and 4,329 in its frozen scale order; Ti counts are 4,241, 4,183,
+4,085, 3,923, and 2,988. No source policy is enabled, so W's all-void
+rejection at 1.15 is retained rather than changing the gate.
+
+The D2 selection budget is independently frozen as 100 labels per element:
+it is no more than half of the matching 200-row D1 database and is far below
+every independently audited geometry-valid pool. It is not copied from any
+D1 selection card. Thus all three cards use tail cap
+`floor(0.05 * 100) = 5`; respectively 129, 215, and 195 candidates are at
+or above the p99 threshold before that cap. The cards retain only absolute-U,
+the frozen distance/void gates, zero candidate/final gaps, no
+force/volume/quota/require-all-source gate, and projected-CUR descriptors
+`r_c=6.0`, `n_max=5`, `l_max=6`, similarity `0.99999`. They are recorded in
+`research-plan.md` section 8.2.2. No CUR or DFT selection job exists yet.
+
+### User-authorized D2 execution sequence
+
+The user explicitly authorizes the three frozen D2 projected-CUR submissions
+and active monitoring. On terminal CUR completion, validate every
+element-local protected selection output before preflighting and submitting
+only its matching Protocol-A DFT batch. Monitoring ends immediately after the
+DFT submissions and their single combined immediate status check; do not
+monitor DFT completion, merging, training, or EOS in this authorization.
+
+### D2 CUR no-overwrite preflight and submission
+
+The selection template and exact card preflight passed. For every element,
+the matching D1 DB retains its recorded SHA-256 and 200 rows; exactly ten
+matching M1 JNNs exist; the score/audit record counts and geometry-valid
+candidate count match the frozen cards; and the CUR root/temporary sidecar,
+`<X>_D2_labeled.db`, `updated.db`, M2, and E2 paths are absent.
+
+| Element | CUR job | Target / tail cap | CUR output root |
+|---|---:|---:|---|
+| W | `13469` | 100 / 5 | `W-potential/fcc-restart/02-nvt-round-2/absolute-u-projected-cur` |
+| Ta | `13470` | 100 / 5 | `Ta-potential/fcc-restart/02-nvt-round-2/absolute-u-projected-cur` |
+| Ti | `13471` | 100 / 5 | `Ti-potential/fcc-restart/02-nvt-round-2/absolute-u-projected-cur` |
+
+Each job requests one node, one task, and 24 hours with no partition,
+account, GPU, or overwrite option. It passes only the matching D2 paths and
+`U_min`, zero candidate/final gaps, `--tail-quantile 0.99 --tail-max 5`,
+frozen distance/void limits, and `r_c=6.0`, `n_max=5`, `l_max=6`,
+similarity `0.99999`. The one immediate combined check found W `PENDING
+(None)` and Ta/Ti `PENDING (Priority)`. Active monitoring is now
+user-authorized only through DFT submission.
+
+### D2 CUR completion, validation, and VASP round-trip correction
+
+Active monitoring found all CUR jobs terminally successful:
+
+| Element | Job | State / exit | Elapsed |
+|---|---:|---|---:|
+| W | `13469` | `COMPLETED / 0:0` | `01:42:17` |
+| Ta | `13470` | `COMPLETED / 0:0` | `02:36:27` |
+| Ti | `13471` | `COMPLETED / 0:0` | `02:28:02` |
+
+The first CUR validator correctly checked candidate/rejection coverage but
+expected a nonexistent `all` aggregate in `cur_selected_distribution.csv`;
+no asset changed. It was corrected to validate the actual `source`,
+`uncertainty_layer`, and `source_layer` aggregates.
+
+The corrected validator then found a numerical Delaunay instability after a
+VASP direct-coordinate round trip: Ta selected `000097.poscar` had positions
+and cell matching the in-memory candidate to `<=1e-15 A`, but an
+`~1e-16 A` cell off-diagonal component produced an unphysical `q_void=4.6658`
+instead of `0.8566`. DFT submission was held. The void routine now removes
+only cell components smaller than `1e-12` times the largest cell-vector norm
+before constructing periodic Delaunay images; this preserves genuine
+triclinic components and makes the metric invariant to this harmless VASP
+round trip. Compilation, whitespace, a direct candidate round-trip check,
+and fresh clean-D0 reference scans passed. The D0 minima/maxima remain W
+`2.119496195/0.822874141`, Ta `2.219146047/0.819366100`, and Ti
+`2.219087713/0.822748897` for minimum distance / normalized void.
+
+The final complete validator passed exact schemas, audit coverage, all
+geometry/rejection values, card/provenance values, p99, candidate and selected
+POSCAR file coverage, 100 unique CUR ranks, similarity, tail cap, source and
+uncertainty-layer distributions, and all 300 selected VASP POSCAR geometries:
+
+| Element | Candidates / rejections / selected / selected-tail | Final selected source counts |
+|---|---:|---|
+| W | 12,813 / 9,692 / 100 / 3 | 0.95: 6; 1.00: 31; 1.05: 34; 1.10: 29 |
+| Ta | 21,403 / 1,094 / 100 / 5 | 0.90: 29; 0.925: 6; 0.95: 8; 0.975: 13; 1.00: 44 |
+| Ti | 19,420 / 3,054 / 100 / 5 | 0.95: 16; 0.975: 8; 1.00: 8; 1.025: 21; 1.05: 47 |
+
+### D2 Protocol-A DFT preflight and submission
+
+The `vasp_batch_dft.py label` CLI, `run_vasp_batch_dft.slurm`, and static
+Protocol-A defaults were checked. Every selected directory has exactly 100
+unary, finite, 32-atom, 3D-PBC positive-cell POSCARs. Each matching D1
+`current.db` retains its recorded 200-row SHA-256; D2 label DB/work,
+`updated.db`, M2, and E2 paths are absent.
+
+| Element | POTCAR SHA-256 | ENMAX / auto-ENCUT (eV) | DFT job | Label DB / work directory |
+|---|---|---:|---:|---|
+| W | `c0897285f1b301314dcc12eb838ce8a777aa860795754598b0626cb818170117` | 223.057 / 289.9741 | `13477` | `W_D2_labeled.db` / `dft/vasp_W_D2` |
+| Ta | `b94d0231aa338d2b49887428178c5ebac7fa385cbd6154890af94e8013d269f3` | 223.667 / 290.7671 | `13478` | `Ta_D2_labeled.db` / `dft/vasp_Ta_D2` |
+| Ti | `f8e8f1d080d9e9b45e792f1068744b07aba8441d1e7ce11486a5d4c0f5a1479e` | 178.330 / 231.8290 | `13479` | `Ti_D2_labeled.db` / `dft/vasp_Ti_D2` |
+
+Every DFT job requests one node, 64 tasks, and 24 hours with no
+partition/account/GPU/overwrite setting; it uses eight VASP ranks/task,
+eight concurrent workers, `NCORE=2`, `vasp_std`, `_` MAGMOM, and
+`KSPACING=0.2`. The one immediate combined status check found W `PENDING
+(None)` and Ta/Ti `PENDING (Priority)`. Per user instruction, monitoring
+stops now; do not query or act on DFT completion until a later explicit
+request.
+
+### D2 DFT completion, Ti retry, and W/Ta D2 transition
+
+On the user's completion request, accounting returned:
+
+| Element | DFT job | State / exit | Elapsed | Outcome |
+|---|---:|---|---:|---|
+| W | `13477` | `COMPLETED / 0:0` | `01:53:44` | 100-row label DB validated |
+| Ta | `13478` | `COMPLETED / 0:0` | `00:59:18` | 100-row label DB validated |
+| Ti | `13479` | `FAILED / 1:0` | `00:57:26` | 99 tasks complete; one VASP task failed |
+
+W/Ta validation passed all 100 selected sources, task directories,
+`vasp_batch_meta.json` provenance, complete OUTCARs, static Protocol-A INCAR
+settings, auto-ENCUT, finite energy/forces/stress, and source/labeled
+32-atom geometry agreement. Their matching 200-row D1 DB checksums remained
+unchanged during label validation.
+
+Ti task `dft/vasp_Ti_D2/00086_000086` alone returned VASP exit `139` during
+its tenth electronic iteration. It has a partial OUTCAR and is incomplete;
+the other 99 task OUTCARs are complete, and no `Ti_D2_labeled.db` exists.
+The protected retry reuses matching prepared inputs, skips the 99 complete
+tasks, and executes only the incomplete task without `--force` or overwrite.
+Job `13494` requests the same one node/64 tasks/24 h, eight ranks per VASP
+task and eight workers, static Protocol-A settings; its one immediate check
+found `PENDING (None)`. Do not poll.
+
+W/Ta D2 labels were merged through distinct base/labeled/updated paths. The
+ordered 200-row base prefix and 100-row label suffix, finite unary 32-atom
+results, no-EOS condition, and protected base checksum passed validation.
+They were then atomically published:
+
+| Element | Published D2 `current.db` rows / SHA-256 |
+|---|---|
+| W | 300 / `a852be39b421e61ff198b9d0d8b1351db5ae2b6729bcfdae6448b3c965bd9309` |
+| Ta | 300 / `ee90d87b4f8f10db42d2e82ce2c4e81a38d188293e6428cc90e186c4c128dc7b` |
+
+The W/Ta M2 preflight verified every current row and frozen
+`dbselectandtrain.py::ENERGY` values W `-12.9581` and Ta `-11.8578`, plus
+absent M2 roots. M2 submissions are:
+
+| Element | M2 job | Card |
+|---|---:|---|
+| W | `13495` | 10 models, 5 workers, 5,000 epochs; 1 node, 5 tasks, 8 CPUs/task, 48 h |
+| Ta | `13496` | 10 models, 5 workers, 5,000 epochs; 1 node, 5 tasks, 8 CPUs/task, 48 h |
+
+The single combined immediate check found W `PENDING (None)` and Ta
+`PENDING (Priority)`. Do not poll. Ti remains isolated and has not been
+merged, published, or submitted for M2.
+
+### D2 terminal status, Ti retry validation, and W/Ta M2 validation
+
+On the subsequent user status request, a single focused accounting query
+found all three submitted jobs successful:
+
+| Element / stage | Job | State / exit | Elapsed |
+|---|---:|---|---:|
+| Ti D2 one-task DFT resume | `13494` | `COMPLETED / 0:0` | `00:02:53` |
+| W M2 committee | `13495` | `COMPLETED / 0:0` | `00:11:51` |
+| Ta M2 committee | `13496` | `COMPLETED / 0:0` | `00:11:59` |
+
+The Ti retry summary is exact: 99 completed tasks were reused, task
+`00086_000086` newly succeeded, and no task failed. Read-only validation of
+the aggregate `Ti_D2_labeled.db` passed:
+
+- manifest, selected POSCAR, task-directory, and label-row coverage are all
+  exactly 100;
+- each task has complete VASP output and matching `vasp_batch_meta.json`;
+- every INCAR matches static Protocol A, including Ti auto-ENCUT
+  `231.8290` eV;
+- all label rows are finite unary Ti 32-atom 3D-PBC positive-cell structures
+  with finite energy, `(32, 3)` forces, and stress;
+- the source and labeled static cell/fractional geometry agree, and label
+  hashes/tags/sources are complete.
+
+The protected Ti D1 `current.db` is unchanged at 200 rows with SHA-256
+`f2874ac425d45bacf41c1e78503e7ece08c59c477b7ad219926e32f4bada577b`.
+No Ti D2 merge, publication, M2 root, or E2 output was created.
+
+W and Ta M2 validation found exactly ten nonempty JNN, trainer, log,
+train-DB, and test-DB artifacts per element. Every trainer specifies 5,000
+epochs; each fold partitions its matching 300-row current DB into 270
+training and 30 test rows, and each row occurs once across all test folds.
+Final test diagnostic ranges are:
+
+| Element | Test MAE-E (meV/atom) | Test MAE-F (meV/A) |
+|---|---:|---:|
+| W | 5.851--10.690 | 169.6--201.9 |
+| Ta | 4.991--8.136 | 135.5--192.2 |
+
+No `evaluations/E2_M2/` path exists for W or Ta. The first read-only
+committee validator stopped because it expected `MAE-E` and `MAE-F` on one
+log line; JSE writes them on adjacent lines. It changed no asset. Parsing
+the final energy and force lines separately resolved the validator issue.
+
+### Authorized Ti D2 merge, publication, and M2 submission
+
+The user authorized the independent Ti D2 transition. The first read-only
+merge preflight made no change but incorrectly expected all 200 D1 rows to
+carry the D0 `nninit-poscars` tag. The base instead has the verified ordered
+100-row D0 prefix and 100-row D1 selected suffix. Checking those two
+segments separately resolved the preflight issue.
+
+The corrected no-overwrite preflight passed:
+
+| Asset | Validation |
+|---|---|
+| Ti D1 base | 200 finite unary 32-atom rows; SHA-256 `f2874ac425d45bacf41c1e78503e7ece08c59c477b7ad219926e32f4bada577b` |
+| Ti D2 labels | 100 finite unary 32-atom rows; SHA-256 `346b004cae39d88ca53f772ac714a1fd815e6c3ad4a95842dec5aa2fec64d779` |
+| Merge/M2/E2 outputs | `updated.db`, M2 committee root, and E2 root absent |
+| Training reference | `ENERGY["Ti"] = -7.8951` eV |
+
+The active supported merge command completed without `--overwrite`:
+
+```bash
+module load jse
+python3 src/vasp_batch_dft.py merge \
+  Ti-potential/fcc-restart/current.db \
+  Ti-potential/fcc-restart/02-nvt-round-2/Ti_D2_labeled.db \
+  Ti-potential/fcc-restart/02-nvt-round-2/updated.db
+```
+
+It wrote 300 rows. Read-only validation confirmed the first 200 rows are
+exact copies of the protected D1 base, the final 100 are exact copies of the
+D2 labels, and all D0/D1/D2 segments retain finite unary 32-atom,
+PBC-positive-cell, finite-result, and no-EOS provenance. The merge was
+copied to an agent-created same-filesystem temporary DB, revalidated, and
+atomically published:
+
+| Published Ti D2 `current.db` | Value |
+|---|---|
+| Rows | 300 |
+| SHA-256 | `cfd5f2f5141c46f7b3636b2eb70d65b71d814e0fa4658c51aaa8ac44d2eb9196` |
+
+Post-publication no-overwrite M2 preflight reconfirmed the 300 rows and
+absent committee/E2 roots. The submitted command is:
+
+```bash
+sbatch --job-name=fcc_m2_Ti --nodes=1 --ntasks=5 --cpus-per-task=8 \
+  --time=48:00:00 \
+  --output=Ti-potential/fcc-restart/slurm_logs/fcc-m2-%j.out \
+  --error=Ti-potential/fcc-restart/slurm_logs/fcc-m2-%j.err \
+  scripts/slurm/run_train_committee.slurm \
+  Ti-potential/fcc-restart/current.db \
+  Ti-potential/fcc-restart/model_versions/M2_from_D2/train-committee \
+  10 5 5000
+```
+
+Ti M2 job `13512` was `PENDING (None)` on the one allowed immediate check.
+No monitoring is active. Validate its terminal ten-model committee before
+starting any Ti E2 evaluation.
+
+### Ti M2 completion and authorized W/Ta/Ti E2 evaluations
+
+On the user's all-element E2 authorization, focused accounting found Ti M2
+job `13512` `COMPLETED 0:0` in `00:13:40`. A full no-overwrite preflight
+validated all three M2 roots against only their matching 300-row current DBs:
+each has ten nonempty 5,000-epoch folds, each fold has 270 train and 30 test
+rows, every row appears once across test folds and nine times across training
+folds, and no E2 root existed. It also validated each fixed reference pair:
+57 matching finite records with exact 19 bcc/19 fcc/19 hcp coverage.
+
+The first preflight completed its validation assertions but failed only while
+printing a relative JNN path that had not been resolved. It made no output.
+Resolving that path fixed the reporter; all three element-local preflights
+then selected:
+
+| Element | Selected M2 JNN | Eligible / 10 | Train/test MAE-E (meV/atom) |
+|---|---|---:|---:|
+| W | `train-9/9.jnn` | 9 | `7.304 / 5.851` |
+| Ta | `train-3/3.jnn` | 8 | `6.029 / 4.991` |
+| Ti | `train-8/8.jnn` | 9 | `4.736 / 3.812` |
+
+The user-authorized, direct, no-overwrite evaluations ran independently:
+
+```bash
+module load jse
+python3 src/eos_check_jnn.py \
+  --element <W|Ta|Ti> \
+  --metadata results/<X>_eos_benchmark/eos_reference/eos_structures.csv \
+  --reference-csv results/<X>_eos_benchmark/eos_reference/eos_reference.csv \
+  --jnn-root <X>-potential/fcc-restart/model_versions/M2_from_D2/train-committee \
+  --model-id E2_M2 \
+  --output-dir <X>-potential/fcc-restart/evaluations \
+  --max-train-test-ratio 1.25
+```
+
+JSE created only its normal inference cache library beside each selected JNN:
+W `train-9/lib9_449de9df543f18bd.so`, Ta
+`train-3/lib3_449de9df543f18bd.so`, and Ti
+`train-8/lib8_449de9df543f18bd.so`. No current DB, EOS reference, or JNN
+model file was an evaluation output target.
+
+Full output validation passed for every E2 root: 10 selection records, 57
+finite raw predictions, 57 finite DFT-merged predictions, four finite
+bcc/fcc/hcp/aggregate metric rows, exact fixed-reference key coverage, and
+two nonempty plots. The fixed metadata/reference SHA-256 pairs and aggregate
+MAEs are:
+
+| Element | Metadata / reference SHA-256 | E2 raw / aligned MAE (meV/atom) |
+|---|---|---:|
+| W | `d0fa9889b18797990d33114f91850c3710ee9b7b0c40856733cbdec392fa4a3d` / `d4360e843da262499a202613704cc73b483e3f74d8a016282da8d7179b512f64` | `67.567137 / 23.830581` |
+| Ta | `16d5f83cd5a994109b17a66846a5091a718cfb6ce61d7f13f19a6e543222dc4f` / `869d901829f0682cb169923b1f0745e8e7503cff5385efb2a84bc53c1a06f4ab` | `51.670502 / 9.654377` |
+| Ti | `3c11ea72890c9d0a1f336b7b609190b980fafdc8878c55d7af74d4cff0ad5ffb` / `1a5f38ae444e9412c9bb0d5cfa5c15e0af89b1af3e1f675892276c6c3c93a541` | `17.053634 / 3.492649` |
+
+The D2 clean-FCC state is complete through M2/E2 for all elements. Preserve
+these mixed results and await a separate user-approved D3 scientific
+decision; do not begin D3 automatically.

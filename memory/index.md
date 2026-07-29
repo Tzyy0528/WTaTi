@@ -1,81 +1,85 @@
 # Memory Index
 
 ## Current State
-The independent W, Ta, and Ti workflows completed `D3 -> M3 -> E3` and the
-D4 database transition. Every element-local `current.db` is a validated
-500-row D4 successor. M4 jobs completed successfully; E4 remains deferred.
+The retained non-FCC W, Ta, and Ti workflows are complete through D4/M4;
+E4 remains deferred. The clean-FCC restart is complete through D2/M2/E2 in
+`memory/28_fcc_clean_restart/`; the user has now authorized all-element D3
+launch, tracked in `memory/30_clean_fcc_D3_npt_launch/`.
 
-All prior FCC-derived structures, databases, models, trajectories, labels,
-evaluations, scheduler outputs, and task records were deleted on user
-instruction. A clean FCC restart is active in `28_fcc_clean_restart/`.
+Clean-FCC D1 is complete for all elements. Each D1 state had 200 validated
+finite unary 32-atom rows, its matching M1 committee has ten validated
+5,000-epoch models, and E1 uses only the fixed validation EOS reference.
 
-The fixed validation-only references remain under:
+All clean-FCC D2 MD jobs are `COMPLETED 0:0`: W `13456`, Ta `13457`, and Ti
+`13458`. Every one of the 15 required source trajectories passed complete
+provenance, finite-output, 32-atom/PBC/positive-cell, and frame-count
+validation.
 
-- `results/W_eos_benchmark/`
-- `results/Ta_eos_benchmark/`
-- `results/Ti_eos_benchmark/`
+All three score-only jobs subsequently completed `0:0`. Every matching
+`uncertainty_all_frames.csv` has 25,005 finite rows and 22,505 production
+rows with complete M1-only provenance.
+
+The D2 `U_min` values were recalculated from the matching ten final M1
+test-force MAEs: W `0.166580000`, Ta `0.144480000`, and Ti
+`0.110986000` eV/A. Geometry-audit jobs W `13465`, Ta `13466`, and Ti
+`13467` all completed `0:0` and their full protected CSVs passed coverage,
+finite-value, provenance, and frozen-gate validation. D2 CUR cards are
+frozen in `research-plan.md` section 8.2.2. CUR jobs W `13469`, Ta `13470`,
+and Ti `13471` completed `0:0`; their protected outputs passed complete
+provenance, gate, CUR, duplicate, selected-POSCAR, and source/tail
+validation. Protocol-A DFT jobs W `13477`, Ta `13478`, and Ti `13479` are
+completed and passed full label validation. W/Ta D2 additions are atomically
+published to their independent 300-row current DBs; M2 jobs `13495`/`13496`
+completed and their ten-model, 5,000-epoch 270/30-fold committees passed
+validation. Ti retry `13494` completed after the sole transient VASP
+failure; its 100-row D2 label DB also passed complete validation, then was
+merged and atomically published with its D1 base as a 300-row Ti
+`current.db`. Ti M2 job `13512` completed and passed the same ten-model
+5,000-epoch 270/30-fold validation. All three fixed-reference E2 evaluations
+completed and passed artifact/isolation validation. Their aggregate raw /
+phase-aligned MAEs (meV/atom) are W `67.567137 / 23.830581`, Ta
+`51.670502 / 9.654377`, and Ti `17.053634 / 3.492649`. No monitoring is
+active.
+
+The documented selection workflow now also has
+`scripts/slurm/run_md_selection_pipeline.slurm`: after an element-local card
+is frozen, it runs score-only uncertainty, geometry audit, and projected CUR
+in one protected allocation while retaining all intermediate artifacts. This
+is recorded in `memory/31_combined_selection_pipeline/`; it has not been
+used for production D3 selection.
 
 ## Active Gate / Blocker
-Fresh W, Ta, and Ti seed POSCARs are validated exact `2 2 2` repeats of only
-their retained four-atom benchmark FCC sources: 32 atoms and all three
-lattice-vector lengths doubled. Each fresh `fcc-restart/` root now contains
-only its matching validated 100-frame 32-atom D0 candidate pool. Clean D0
-Protocol-A VASP jobs W `13381`, Ta `13382`, and Ti `13383` completed `0:0`.
-All three matching 100-row, finite 32-atom label DBs passed complete
-validation and are atomically published as only their matching clean FCC D0
-`current.db`. Clean M0 committee jobs W `13395`, Ta `13396`, and Ti `13397`
-completed `0:0`; every ten-model 5,000-epoch committee and its fixed
-57-point E0 output passed validation. E0 aggregate raw/aligned MAEs
-(meV/atom) are W `131.064897/28.027437`, Ta `16.182558/13.358162`, and Ti
-`36.024202/7.434641`. The user authorized deleting all old D1 trajectories,
-scores, and D1-local logs after their jobs were confirmed inactive. Fresh
-lower-temperature (`1.10*T_m`) D1 jobs W `13421`, Ta `13422`, and Ti
-`13423` completed `0:0` from the same validated 32-atom seeds and M0
-committees. All replacement five-source trajectories passed complete
-finite-output and command-provenance validation.
+The clean-FCC E0/E1/E2 review is complete in
+`memory/29_clean_fcc_e2_scientific_review/deliverable.md`. No element is a
+clear green light for an unmodified D3 NPT card: W and Ta are conditional on
+targeted bcc diagnostics/design plus finite-stress preflight; Ti is held for
+a read-only D2 coverage/selection and full-committee EOS-spread diagnosis.
+The user has explicitly overridden that review hold for an all-element
+clean-FCC D3 launch. Task 30 passed all 30 finite-stress/NPT and no-overwrite
+checks, then submitted D3 jobs W `13513`, Ta `13514`, and Ti `13515`. The
+one immediate queue check found W `PENDING (None)` and Ta/Ti
+`PENDING (Priority)`; no monitoring is active.
 
 ## Standing Constraints
-- Keep W, Ta, and Ti data, databases, models, candidate pools, and EOS
-  references independent.
-- Do not add EOS structures or labels to any `current.db`.
-- Do not reuse any deleted FCC asset or prior FCC job output.
-- Preserve D4/M4 outputs unless the user explicitly directs otherwise.
-- Use staged SLURM execution for DFT, training, and MD.
-- Every future selection requires all-frame scoring, a current-committee
-  mean-test-force-MAE absolute threshold, and current.db-projected CUR.
-- Do not run E4.
+- Keep W, Ta, and Ti databases, models, pools, trajectories, and outputs
+  completely isolated.
+- EOS references are validation-only and must never enter `current.db`.
+- D2 uses only the matching D1 DB, 32-atom seed, and all ten M1 JNNs.
+- D2 selection must be recalibrated from its own pool; do not loosen later
+  geometry gates or reuse D1 numerical calibration values.
+- Do not overwrite generated outputs, use legacy `nncalc`, or run E4.
 
 ## Ready Assets
-- Retained element-local D4 `current.db` files and M4 committee outputs.
-- Retained four-atom FCC source POSCARs in `structures/<X>_benchmark/`.
-- Fixed EOS references, which remain validation-only.
-- Historical non-FCC task records `01_` through `27_`.
-- Active clean restart record: `28_fcc_clean_restart/`.
+- Matching clean-FCC 32-atom seeds, D2 selected pools, validated label DBs,
+  isolated 300-row D2 current DBs, validated M2 committees, and protected
+  E2 outputs for W, Ta, and Ti.
+- Fixed EOS references below `results/<X>_eos_benchmark/`.
+- D2 scheduler roots:
+  `<X>-potential/fcc-restart/02-nvt-round-2/slurm_logs/`.
+- Complete task record: `memory/28_fcc_clean_restart/`.
 
 ## Immediate Next Step
-The three clean-D1 selections passed independently and Protocol-A labels are
-submitted only for their matching element-local sets. Ta D1 labels passed
-full validation, were merged in D0-then-D1 order, and were atomically
-published as the 200-row
-`Ta-potential/fcc-restart/current.db` (SHA-256
-`69b733947c729bd4aa5685f8598ceb8a4356be80f5f00797dd3b156e051cf95a`).
-Ta M1 job `13448` completed successfully and passed the ten-model,
-5,000-epoch, 180/20-fold validation. The earlier empty-directory report was
-an `fd` ignore-rule inspection error; generated JNN/DB/log files are ignored
-by `.gitignore` and were present. Ta E1 completed against only the fixed
-57-point EOS reference. Aggregate raw/aligned MAEs are
-`66.435829/8.339454` meV/atom versus E0
-`16.182558/13.358162`: raw cross-phase error regressed while phase-aligned
-shape error improved. No D2 step is started.
-
-Ti D1 labels likewise passed validation, were merged in D0-then-D1 order,
-and were atomically published as the 200-row
-`Ti-potential/fcc-restart/current.db` (SHA-256
-`f2874ac425d45bacf41c1e78503e7ece08c59c477b7ad219926e32f4bada577b`).
-Ti M1 `13450` and W M1 `13453` both completed successfully and passed
-independent ten-model, 5,000-epoch, 180/20-fold validation. Their fixed
-57-point E1 evaluations also passed. Aggregate raw/aligned MAEs (meV/atom)
-are W E0 -> E1 `131.064897/28.027437 -> 64.413224/21.424392`, and Ti E0 ->
-E1 `36.024202/7.434641 -> 14.103997/1.962939`; both metrics improve for W
-and Ti. No D2 step is started without a separate scientific decision. The
-deleted D1 score CSVs and all superseded selection cards must not be reused.
+On a later user status/completion request, make one focused terminal-state
+check and validate all seven D3 NPT sources per element before any scoring.
+Preserve EOS results as validation-only; scoring, selection, DFT, merge, M3,
+and E3 remain unauthorized.

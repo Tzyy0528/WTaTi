@@ -393,6 +393,70 @@ all-frame uncertainty, absolute-U, geometry-first projected-CUR, and DFT
 quantities must be recalibrated independently from each D2 pool. EOS
 references remain validation-only and are not inputs to D2.
 
+### 8.2.2 Frozen Clean-FCC D2 Selection Cards
+
+The D2 geometry-audit jobs W `13465`, Ta `13466`, and Ti `13467` completed
+with exit `0:0`. Each protected `geometry_audit.csv` exactly covers its
+post-equilibration, post-`U_min` production frames and records finite,
+periodic minimum-distance and normalized-empty-sphere values. The audit cards
+and frozen projected-CUR selection cards are:
+
+| Element | `U_min` (eV/A) | Post-`U_min` / geometry-valid | `U_tail` p99 (eV/A) | `N_DFT` / tail cap |
+|---|---:|---:|---:|---:|
+| W | 0.166580000 | 22,505 / 12,813 | 1.582394200 | 100 / 5 |
+| Ta | 0.144480000 | 22,497 / 21,403 | 2.762254279 | 100 / 5 |
+| Ti | 0.110986000 | 22,474 / 19,420 | 0.872469347 | 100 / 5 |
+
+`U_min` is the required arithmetic mean of the matching ten M1 final
+test-force MAEs. `U_tail` is the linear-interpolated p99 of only the
+geometry-valid audit records. The 100-label D2 budget is independently
+bounded to half of the matching 200-row D1 state and by the matching
+geometry-valid candidate count; all three pools exceed that bound by more
+than two orders of magnitude. It is not inherited from a D1 selection card.
+The tail cap is therefore `floor(0.05 * 100) = 5`.
+
+Every D2 CUR run must pass `--candidate-frame-gap 0 --final-frame-gap 0`,
+`--tail-quantile 0.99`, its matching `--tail-max 5`,
+`--min-distance` and `--max-normalized-void` values from section 10.2, and
+the descriptor card `r_c=6.0`, `n_max=5`, `l_max=6`, similarity `0.99999`.
+Do not pass force, volume, source-balance, or require-all-source gates. W's
+scale `1.15` has no geometry-valid record under the frozen void limit; this
+is an auditable outcome, not a reason to relax the gate or add a source
+constraint.
+
+### 8.2.3 Frozen Clean-FCC D3 NPT Cards
+
+The user explicitly authorizes all-element clean-FCC D3 despite the
+E0/E1/E2 review hold. `03-npt-round-1` therefore samples only the matching
+32-atom clean-FCC seed with `--rep 1 1 1`, its matching 300-row D2
+`current.db` as the protected state guard, and all ten matching M2 models.
+The normal-pressure high-temperature targets from section 8.3 are an explicit
+D3 choice; they do not inherit the D2 NVT cards. The one common, explicitly
+authorized starting pressure grid is `1, 5, 10, 20, 30, 40, 50` GPa:
+
+| Element | D3 root | Seed | Temperature (K) | M2 committee |
+|---|---|---|---:|---|
+| W | `W-potential/fcc-restart/03-npt-round-1/` | `structures/W_fcc_restart/W-fcc-seed-32.poscar` | 4928.15 | `W-potential/fcc-restart/model_versions/M2_from_D2/train-committee/` |
+| Ta | `Ta-potential/fcc-restart/03-npt-round-1/` | `structures/Ta_fcc_restart/Ta-fcc-seed-32.poscar` | 4485.65 | `Ta-potential/fcc-restart/model_versions/M2_from_D2/train-committee/` |
+| Ti | `Ti-potential/fcc-restart/03-npt-round-1/` | `structures/Ti_fcc_restart/Ti-fcc-seed-32.poscar` | 2750.65 | `Ti-potential/fcc-restart/model_versions/M2_from_D2/train-committee/` |
+
+For each row, the complete ordered committee is exactly
+`train-0/0.jnn`, `train-1/1.jnn`, ..., `train-9/9.jnn` below the listed
+element-local committee root. Every card passes each of those paths
+explicitly to the runner; no selected EOS model or cross-element model may
+substitute for the committee.
+
+All three cards use 50,000 steps at 1.0 fs, trajectory/log intervals `10/1`,
+HAL `tau_r=0.10`, `ttime=75.0` fs, `ptime=75.0` fs, bulk modulus
+`100.0` GPa (to derive `pfactor`), and `frac_traceless=0.0`. The runner is
+submitted with one node, seven exclusive one-core tasks, and 24 hours, one
+task for each pressure. A finite energy/force/(6,) stress and NPT-constructor
+preflight is mandatory for every one of the 30 models before submission.
+The pressure span provides the requested compression/volume exploration for
+the W/Ta bcc-focused review; Ti proceeds only because of the user's explicit
+override. D3 authorization does not authorize scoring, selection, DFT,
+database merge, M3, or E3. EOS references remain validation-only.
+
 ### 8.3 Temperature Reference Data
 
 `src/temperature_table.py` records these normal-pressure phase-change
@@ -653,6 +717,36 @@ similarity threshold = 0.99999
 ```
 
 Change them only with a recorded descriptor-rank/coverage reason.
+
+### 10.5 One-Submission MD Selection Pipeline
+
+The separate score-only, geometry-audit, and CUR entry points remain available
+for calibration, diagnosis, and recovery. Once an element-local selection card
+has already fixed its DFT target, distance/void gates, and descriptor policy,
+the three execution steps may instead run sequentially in one protected
+allocation through:
+
+```text
+scripts/slurm/run_md_selection_pipeline.slurm
+```
+
+The pipeline requires an explicit element, round, base DB, exact ten-model
+committee glob, source grid, target, geometry limits, and descriptor
+parameters. It derives the required `U_min` only from the final test
+`MAE-F` values of those ten model logs, writes the paths/ten values/mean to
+`slurm_logs/selection-u-min-<jobid>.txt`, fixes tail policy at linear p99 and
+`floor(0.05 * target)`, and enforces zero candidate/final frame gaps. It
+first writes `uncertainty_all_frames.csv`, then `geometry_audit.csv`, checks
+that the audit exactly covers the post-equilibration/post-`U_min` frames and
+has at least the requested number of geometry-valid frames, and only then
+starts the existing projected-CUR selector.
+
+This is an execution convenience, not an automatic scientific policy. It must
+not infer or loosen the DFT target, geometry limits, source policy, descriptor
+policy, or use another element's inputs. It refuses existing all-frame, audit,
+or CUR outputs and retains the same all-frame, audit, gate-rejection,
+projected-CUR, tail, and final-POSCAR artifacts as the separate flow. It does
+not authorize DFT, merge, training, or EOS evaluation.
 
 ## 11. DFT Label, Merge, Retrain, and EOS
 

@@ -133,6 +133,10 @@ correctly expanded 2x2x2 FCC seeds, with no reuse of deleted FCC artifacts.
   name `WTaTi`. No path was created and no job was submitted. Resolution:
   test only element-specific path components such as `Ta-potential`, then
   rerun the read-only preflight.
+- The first combined post-submission memory patch applied the task-plan and
+  notes changes but missed stale contexts in the deliverable and index. No
+  workflow asset changed. Resolution: read the current files and apply
+  focused follow-up updates.
 
 ## Status
 **Historical Phase 4** - D0 jobs W `13381`, Ta `13382`, and Ti `13383`
@@ -434,3 +438,318 @@ overwrite setting. W uses 4051.465 K and scales
 `0.90,0.925,0.95,0.975,1.00`; Ti uses 2135.265 K and
 `0.95,0.975,1.00,1.025,1.05`. D2 selection parameters must be recalibrated
 from the D2 pools; no EOS asset is an input.
+
+**Current Phase 5 D2 submission** - after the two corrected read-only
+preflight attempts, the third preflight passed for every element: each
+matching `current.db` has exactly 200 finite unary 32-atom rows and its
+recorded checksum; each seed is its recorded finite/PBC 32-atom POSCAR; all
+ten matching M1 JNN paths are nonempty; every D2 root, M2 root, and E2 root
+was absent. Template syntax and MD-worker compilation passed. Only each
+absent D2 `slurm_logs/` directory was then created. The explicit no-overwrite
+NVT cards were submitted as W `13456`, Ta `13457`, and Ti `13458`, each with
+one node, five tasks, and 24 hours. The single permitted combined immediate
+`squeue` check reported W and Ta `RUNNING` on `lpsnode02` and Ti `PENDING`
+with no assigned node. Do not poll. On a later user status/completion
+request, validate all 15 D2 trajectories before any score-only submission.
+
+**Current Phase 5 D2 completion validation** - on the user's completion
+report, one focused `sacct` check found W `13456`, Ta `13457`, and Ti
+`13458` all `COMPLETED 0:0` in `00:50:05`, `00:50:10`, and `00:48:59`.
+Read-only validation passed for every element: exactly five expected sources,
+each with correct M1-only command provenance, 5,001 finite unary
+32-atom/PBC/positive-cell trajectory frames, and 50,001 finite one-step
+summary rows. `current.db` checksums are unchanged and all score, selection,
+DFT-label, M2, and E2 outputs remain absent. The next staged operation is
+three independent no-overwrite M1 `--score-only` submissions that write only
+each D2 `uncertainty_all_frames.csv`; after completion, validate every
+25,005-row CSV and recalculate D2-only uncertainty/geometry/CUR quantities.
+
+**Current Phase 5 D2 score-only submission** - the no-overwrite preflight
+passed for every element: its D1 checksum and 200-row DB are unchanged,
+exactly five validated trajectories and ten matching nonempty M1 JNNs exist,
+and score/selection/DFT/M2/E2 outputs are absent. Template syntax, scorer
+compilation, JSE, and SLURM commands passed. The independent one-node,
+one-task, 24-hour score-only jobs were submitted as W `13462`, Ta `13463`,
+and Ti `13464`, with only their matching M1 glob, D2 scale list, 10% initial
+equilibration discard, and absent `uncertainty_all_frames.csv` output path.
+The single permitted immediate combined `squeue` check found all three
+`PENDING` (Ta/Ti `Priority`; W no assigned node). Do not poll. On a later
+user completion/status request, validate all three CSVs and recalculate the
+ten-model M1 test-`MAE-F` absolute-U cutoff per element.
+
+**D2 score-validator correction** - the first read-only CSV validator stopped
+at W because it compared the score-command scale-list text literally and did
+not allow harmless numeric formatting (`1.00` versus `1`). No asset changed.
+Resolution: parse and compare scale values numerically, then rerun the full
+CSV validator.
+- The first M1 trainer-history JSON inspection assumed the JSON file was
+  directly below `train-0`; it is actually under `train-0/jnnhistory/`.
+  Resolution: inspect that path and extract final force diagnostics from the
+  carriage-return-delimited terminal logs without reading their progress
+  streams into memory.
+- The first combined persistent-record patch used stale surrounding text and
+  did not apply to either task file; no workflow asset changed. Resolution:
+  append the D2 calibration record against the current file tails.
+
+**Current Phase 5 D2 score validation** - on the user's completion report,
+one focused `sacct` check found score-only jobs W `13462`, Ta `13463`, and Ti
+`13464` all `COMPLETED 0:0` in `00:22:50`, `00:23:12`, and `00:22:55`.
+After the formatting-only validator correction, every CSV passed: exact
+20-column schema, 25,005 finite all-frame rows, five complete 5,001-frame
+sources, 500 discarded plus 4,501 production frames per source, and 22,505
+production frames per element. Command provenance uses only its matching M1
+glob/scale list and score-only output; current D1 DB checksums are unchanged,
+and no selection/DFT/M2/E2 output exists. Next, make a D2-only calibration
+record from the ten M1 test `MAE-F` values and the production CSVs:
+absolute-U cutoff, geometry-gate audit, p99 tail, candidate count, DFT
+budget, and projected-CUR card. Do not reuse D1 numerical values or submit
+selection before that card is frozen.
+
+**Current Phase 5 D2 calibration** - read-only extraction of the final M1
+`MAE-F` values confirms the matching ten-model arithmetic means and
+`U_min` values: W `166.580000 meV/A -> 0.166580000 eV/A`, Ta
+`144.480000 meV/A -> 0.144480000 eV/A`, and Ti `110.986000 meV/A ->
+0.110986000 eV/A`. The post-`U_min` production counts are W `22,505`, Ta
+`22,497`, and Ti `22,474`; the required distance/void audit must now run
+over exactly those frames. The existing selector computes the prescribed
+periodic geometry values only while creating a full CUR transaction, so a
+protected audit-only mode is needed to avoid premature candidate/POSCAR/CUR
+output with an uncalibrated DFT target. No D2 selection card, selection
+output, or DFT submission is authorized yet.
+
+**D2 geometry-audit submission** - the audit-only selector/template
+implementation passed Python compilation, SLURM shell syntax, JSE CLI help,
+whitespace, and a one-frame in-memory periodic-geometry API check. The
+read-only no-overwrite preflight passed for all three elements: matching D1
+databases retain their exact 200-row checksums, each score CSV has
+`25,005/22,505` all/production frames and the recorded post-`U_min` count,
+and its `geometry_audit.csv`, temporary audit sidecar, and CUR output root
+are absent. The exact submitted cards are one node, one task, 24 hours, no
+partition/account/GPU/overwrite, zero candidate/final gaps, and only the
+matching `U_min`, minimum-distance, and normalized-void gates. Jobs W
+`13465`, Ta `13466`, and Ti `13467` write only their own protected
+`02-nvt-round-2/geometry_audit.csv` plus scheduler/command records. The one
+permitted combined immediate check found all `PENDING` (W `(None)`, Ta/Ti
+`(Priority)`). Do not poll. On a later completion/status request, validate
+all audit CSVs before freezing the D2 projected-CUR selection cards.
+
+**D2 geometry-audit validation and selection-card freeze** - on the user's
+completion report, one focused accounting check found W `13465`, Ta `13466`,
+and Ti `13467` `COMPLETED 0:0` in `00:32:47`, `00:32:20`, and `00:32:29`.
+Each audit CSV exactly covers its post-`U_min` source/frame set with no
+duplicates, preserves uncertainty/path/32-atom provenance, has finite
+positive geometry diagnostics, and has gate status/reasons identical to the
+frozen distance/void comparisons. The geometry-valid counts are W `12,813`,
+Ta `21,403`, and Ti `19,420`; p99 tail thresholds are W `1.582394200`, Ta
+`2.762254279`, and Ti `0.872469347` eV/A. The D2 cards are now frozen at
+`N_DFT=100`, `tail-max=5`, zero temporal gaps, no force/volume/source gate,
+and descriptor card `6.0/5/6/0.99999`; their independent budget rationale is
+recorded in `research-plan.md` section 8.2.2. The actual CUR selections have
+not been submitted. The next operation is an element-isolated no-overwrite
+CUR preflight and submission only with explicit authorization.
+
+**Current Phase 5 execution authorization** - the user explicitly authorizes
+submission and active monitoring of all three frozen D2 projected-CUR
+selections. After each selection completes, validate its protected output and
+then preflight/submit the matching Protocol-A DFT batch. Continue monitoring
+only through DFT submission; stop monitoring immediately after the DFT jobs
+are submitted and make only their one permitted immediate combined status
+check.
+
+**D2 CUR submission** - the strict no-overwrite preflight passed for every
+element: matching D1 `current.db` has its recorded checksum and 200 rows,
+the matching M1 root has ten nonempty JNNs, its score/audit coverage and
+geometry-valid count match the frozen card, and selection/label/updated/M2/E2
+paths are absent. The exact one-node, one-task, 24-hour CUR cards use only
+matching paths, `U_min`, zero gaps, target `100`, linear p99 with tail cap
+`5`, frozen distance/void values, and descriptors `6.0/5/6/0.99999`; no
+force/volume/source policy or overwrite is passed. W `13469`, Ta `13470`,
+and Ti `13471` are submitted. The one permitted immediate combined check
+found W `PENDING (None)` and Ta/Ti `PENDING (Priority)`. User-authorized
+active monitoring now continues only until each output validates and the
+three Protocol-A DFT jobs are submitted.
+
+**D2 CUR monitored completion** - active monitoring found all CUR jobs
+terminally successful: W `13469` `COMPLETED 0:0` in `01:42:17`, Ta `13470`
+`COMPLETED 0:0` in `02:36:27`, and Ti `13471` `COMPLETED 0:0` in
+`02:28:02`. Validate every protected CUR output completely before any DFT
+preflight or submission; active monitoring remains authorized through the
+subsequent DFT submissions only.
+
+**CUR validator correction** - the first read-only CUR-output validator
+stopped at W because it incorrectly expected an `all` row in
+`cur_selected_distribution.csv`; the selector instead writes `source`,
+`uncertainty_layer`, and `source_layer` aggregates. No workflow asset
+changed. Resolution: compare the source and uncertainty-layer aggregates to
+the selection summary, then rerun the full validator for all three elements.
+
+**Void round-trip correction** - the second read-only validator found Ta
+selected POSCAR `000097.poscar` with a spurious normalized void `4.6658`
+after a VASP read, despite the source/candidate geometry being `0.8566`.
+The positions and physical cell agree to `1e-15 A`; only an
+`~1e-16 A` orthogonal-cell round-off component changes a degenerate Delaunay
+simplex. No DFT was submitted. Resolution: remove only sub-`1e-12`-cell-scale
+components before the periodic Delaunay calculation, document it, recompile,
+recompute the D0 reference values unchanged, and revalidate every selected
+VASP POSCAR before DFT preflight.
+
+**D2 CUR validation and DFT submission** - after the round-trip correction,
+all three protected CUR outputs passed complete validation. The
+candidate/rejection/selected/tail counts are W `12,813/9,692/100/3`, Ta
+`21,403/1,094/100/5`, and Ti `19,420/3,054/100/5`; every record exactly
+covers the matching audit result, the linear p99/tail cap and descriptor
+provenance match the frozen card, and all 300 selected VASP POSCARs are
+finite, unary, 32-atom, PBC, geometry-gate-valid, and nonduplicate under the
+round-trip-stable void metric. Recomputed clean-D0 minimum-distance/void
+references remain unchanged. Protocol-A preflight then passed: selected sets
+have 100 POSCARs, D1 DB hashes/200 rows are intact, label/work/updated/M2/E2
+paths are absent, local POTCAR identity/ENMAX/auto-ENCUT agrees with the
+frozen protocol, and the static INCAR defaults are intact. DFT jobs W
+`13477`, Ta `13478`, and Ti `13479` are submitted with one node, 64 tasks,
+24 hours, 8 VASP ranks/task, and 8 concurrent workers. Their one immediate
+combined check found W `PENDING (None)` and Ta/Ti `PENDING (Priority)`.
+Per user instruction, stop monitoring after this check; do not check these
+jobs again without a later explicit request.
+
+**Record-update correction** - two combined memory patches used stale
+surrounding text while the task record was being extended; the matching
+hunks were not applied and no workflow asset changed. Resolution: re-read the
+current file tails and apply focused status updates. The final task, notes,
+deliverable, and index records now state the DFT submission stop point.
+
+**W/Ta D2 publish correction** - the first atomic-publication validator copied
+the validated W merge to an agent-created temporary path ending only in
+`.tmp`; ASE could not infer its database type and stopped before publication.
+W/Ta `current.db` checksums and row counts remain the protected D1 values;
+only the known agent-created W temporary copy exists. Resolution: remove that
+temporary copy and retry the same validation/publication using an ASE-readable
+temporary name ending in `.tmp.db`.
+
+**D2 DFT completion and independent transitions** - on the user's completion
+request, focused accounting found W `13477` and Ta `13478` `COMPLETED 0:0`
+in `01:53:44` and `00:59:18`; their 100-row label DBs passed complete
+Protocol-A task/source coverage, finite results, 32-atom geometry, and
+unchanged-D1 validation. Ti `13479` failed `1:0` after 99 successful VASP
+tasks because only `00086_000086` returned `139`; no Ti label DB, merge, or
+M2 output exists. Its complete-output preflight passed: 99 task directories
+are reusable and complete, the one failed task is incomplete, and the label
+DB is absent. The no-overwrite resume job `13494` is submitted with the same
+one-node/64-task/8-rank/8-worker static Protocol-A card; its one immediate
+check found `PENDING (None)`. Do not poll.
+
+W/Ta each merged their distinct 200-row D1 base and 100-row D2 label DB to a
+validated ordered 300-row `updated.db`; every row is finite, unary, 32-atom,
+and EOS-free. The validated results were atomically published as `current.db`
+with W SHA-256 `a852be39b421e61ff198b9d0d8b1351db5ae2b6729bcfdae6448b3c965bd9309`
+and Ta SHA-256
+`ee90d87b4f8f10db42d2e82ce2c4e81a38d188293e6428cc90e186c4c128dc7b`.
+No Ti current DB changed. W/Ta M2 preflight passed against the frozen
+`ENERGY` values and absent M2 roots. M2 jobs W `13495` and Ta `13496` are
+submitted with ten models, five workers, 5,000 epochs, one node/five tasks,
+eight CPUs/task, and 48 hours; their one immediate combined check found both
+`PENDING` (W `(None)`, Ta `(Priority)`). Do not poll.
+
+**D2 terminal status and validation** - on the user's status request,
+focused accounting found Ti DFT retry `13494`, W M2 `13495`, and Ta M2
+`13496` all `COMPLETED 0:0`, in `00:02:53`, `00:11:51`, and `00:11:59`,
+respectively. Ti's resume summary reports exactly 99 reused completed tasks,
+one newly successful task, and zero failures. Its completed 100-row
+`Ti_D2_labeled.db` passed task/manifest/Protocol-A, finite
+energy/forces/stress, unary 32-atom/PBC/positive-cell, static
+source-geometry, and label-provenance validation. Ti `current.db` remains
+the protected 200-row D1 database with SHA-256
+`f2874ac425d45bacf41c1e78503e7ece08c59c477b7ad219926e32f4bada577b`;
+no Ti merge, publication, or M2 submission occurred.
+
+W and Ta M2 committees each passed artifact, 5,000-epoch, finite-current-DB,
+and disjoint-fold validation: ten nonempty JNN folds, 270/30 train/test
+partitions of the matching 300-row D2 state, each row once in test and nine
+times in train. W final test MAE-E/MAE-F ranges are
+`5.851--10.690 meV/atom` and `169.6--201.9 meV/A`; Ta ranges are
+`4.991--8.136 meV/atom` and `135.5--192.2 meV/A`. No E2 output exists.
+The next mutable operations require explicit authorization: Ti's distinct
+D1-plus-D2 merge, atomic `current.db` publication, and M2 submission; and
+separate no-overwrite fixed-reference E2 evaluation of the validated W/Ta
+M2 committees.
+
+**Validation correction** - the first read-only W/Ta M2 validator
+incorrectly required `MAE-E` and `MAE-F` to occur on one log line. JSE writes
+them on consecutive lines, so it stopped without changing any asset.
+Resolution: parse the final energy and force diagnostic lines independently;
+the corrected full validation passed.
+
+**Ti D2 transition authorization** - the user explicitly authorizes Ti's
+distinct D1-plus-D2 merge, atomic `current.db` publication, and M2
+submission. First run an element-isolated no-overwrite preflight against the
+validated 200-row D1 base, 100-row D2 labels, absent updated/M2/E2 paths,
+and frozen `ENERGY["Ti"] = -7.8951`; then merge and validate the ordered
+300-row DB before publication. Submit only the validated Ti M2 committee
+through the standard one-node, five-task, 5,000-epoch SLURM card and make
+one immediate status check.
+
+**Ti D2 merge/publication and M2 submission** - the corrected no-overwrite
+preflight passed with the protected 200-row D1 SHA-256
+`f2874ac425d45bacf41c1e78503e7ece08c59c477b7ad219926e32f4bada577b`,
+the validated 100-row D2 label SHA-256
+`346b004cae39d88ca53f772ac714a1fd815e6c3ad4a95842dec5aa2fec64d779`,
+absent updated/M2/E2 paths, and `ENERGY["Ti"] = -7.8951`. The active
+`vasp_batch_dft.py merge` created the distinct 300-row
+`02-nvt-round-2/updated.db`. Its ordered D0/D1/D2 `100/100/100` segments,
+finite unary 32-atom results, no-EOS provenance, and exact source-row
+identity with the protected base and D2 label DB passed validation.
+
+The validated merge was copied to an agent-created same-filesystem temporary
+`*.tmp.db`, checksum/contents revalidated, and atomically published as Ti
+`current.db` with SHA-256
+`cfd5f2f5141c46f7b3636b2eb70d65b71d814e0fa4658c51aaa8ac44d2eb9196`.
+The post-publication M2 preflight passed with the absent committee/E2 paths
+and a 300-row finite unary Ti DB. Job `13512` is submitted with the standard
+no-overwrite card: one node, five tasks, eight CPUs/task, 48 hours, ten
+models, five workers, and 5,000 epochs. Its one permitted immediate check
+reported `PENDING (None)` with no assigned node. Do not poll. On a later
+completion/status request, validate this M2 committee before any Ti E2
+evaluation.
+
+**Ti preflight correction** - the first read-only merge preflight
+incorrectly required the entire D1 base to share the D0
+`nninit-poscars` tag. It stopped without creating an output; the actual
+validated order is 100 D0 rows followed by 100 D1 selected rows. Resolution:
+check the two D1 segments separately; the corrected preflight passed.
+
+**E2 authorization** - the user explicitly authorizes independent
+fixed-reference E2 evaluation for W, Ta, and Ti. Accounting confirms Ti M2
+job `13512` is terminal `COMPLETED 0:0`; validate its committee and perform
+one read-only no-overwrite preflight for all three M2 committees, matching
+300-row current DBs, and fixed EOS references before direct element-isolated
+`eos_check_jnn.py` evaluations.
+
+**M2/E2 completion** - Ti M2 job `13512` completed `0:0` in `00:13:40`.
+The same no-overwrite E2 preflight fully validated all three M2 committees:
+ten nonempty 5,000-epoch JNN folds, 270/30 train/test partitions of only the
+matching 300-row D2 current DB, each row once in test and nine times in
+train. Fixed EOS metadata/reference pairs each have 57 matching finite
+records with 19 bcc, 19 fcc, and 19 hcp points; all three `E2_M2` output
+paths were absent.
+
+The independent W/Ta/Ti direct fixed-reference evaluations completed and
+their protected outputs passed full artifact, selection, 57-point
+phase/key/provenance, finite prediction/metric, current-DB checksum, and
+nonempty-plot validation. The selected model / eligible-count / aggregate
+raw and phase-aligned MAE are:
+
+| Element | M2 model | Eligible / 10 | Raw / aligned MAE (meV/atom) |
+|---|---|---:|---:|
+| W | `train-9/9.jnn` | 9 | `67.567137 / 23.830581` |
+| Ta | `train-3/3.jnn` | 8 | `51.670502 / 9.654377` |
+| Ti | `train-8/8.jnn` | 9 | `17.053634 / 3.492649` |
+
+Only normal per-selected-model JSE inference cache libraries were created.
+The W/Ta/Ti D2 workflows are now complete through M2/E2. Preserve the
+mixed EOS outcomes and require a separate scientific decision before any D3
+sampling, selection, DFT, or training.
+
+**E2 preflight reporting correction** - the first all-element preflight
+completed every validation assertion but then stopped while formatting a
+relative selected-JNN path because that path had not been resolved. It
+created no E2 output. Resolution: resolve the selected JNN before formatting;
+the corrected selection preflight passed for W/Ta/Ti.

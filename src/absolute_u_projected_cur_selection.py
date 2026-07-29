@@ -73,6 +73,26 @@ PHYSICAL_GATE_REJECTION_FIELDS = (
     "physical_gate_reasons",
 )
 
+GEOMETRY_AUDIT_FIELDS = (
+    "source_type",
+    "source_value",
+    "scale_factor",
+    "trajectory",
+    "trajectory_path",
+    "frame",
+    "uncertainty",
+    "volume_per_atom",
+    "max_force",
+    "max_force_model0",
+    "candidate_rank_source",
+    "natoms",
+    "min_distance_A",
+    "void_radius_A",
+    "normalized_void",
+    "geometry_gate_status",
+    "physical_gate_reasons",
+)
+
 
 def read_csv(path: Path) -> list[dict]:
     with path.open(newline="", encoding="utf-8") as handle:
@@ -84,6 +104,24 @@ def write_csv(path: Path, rows: list[dict], fieldnames: tuple[str, ...] | list[s
         writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
+
+
+def write_csv_atomic(
+    path: Path, rows: list[dict], fieldnames: tuple[str, ...] | list[str]
+) -> None:
+    if path.exists():
+        raise FileExistsError(f"Output exists; refusing to overwrite: {path}")
+    if not path.parent.is_dir():
+        raise FileNotFoundError(f"Missing output directory: {path.parent}")
+    temporary = path.parent / f".{path.name}.tmp-{os.getpid()}"
+    if temporary.exists():
+        raise FileExistsError(f"Temporary output exists; refusing to overwrite: {temporary}")
+    try:
+        write_csv(temporary, rows, fieldnames)
+        os.replace(temporary, path)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def finite_float(row: dict, key: str) -> float:
@@ -166,6 +204,14 @@ def maximum_normalized_void(atoms) -> tuple[float, float]:
     cell = np.asarray(atoms.cell.array, dtype=float)
     if not np.isfinite(cell).all():
         raise ValueError("Non-finite cell for void metric")
+    # VASP direct-coordinate round trips can introduce ~1e-16 A components
+    # into otherwise orthogonal cells.  Remove only this numerical noise before
+    # Delaunay construction; otherwise degenerate image tetrahedra can yield a
+    # spurious cell-scale circumradius.
+    cell_scale = float(np.max(np.linalg.norm(cell, axis=1)))
+    if not math.isfinite(cell_scale) or cell_scale <= 0.0:
+        raise ValueError("Invalid cell for void metric")
+    cell[np.abs(cell) < 1.0e-12 * cell_scale] = 0.0
     volume_per_atom = float(atoms.get_volume() / len(atoms))
     if not math.isfinite(volume_per_atom) or volume_per_atom <= 0.0:
         raise ValueError("Invalid volume per atom for void metric")
@@ -203,16 +249,8 @@ def maximum_normalized_void(atoms) -> tuple[float, float]:
     return radius_max, radius_max / volume_per_atom ** (1.0 / 3.0)
 
 
-def write_candidate_poscars(
-    selected_by_source: dict[str, list[dict]],
-    candidate_dir: Path,
-    min_distance_limit: float | None,
-    max_normalized_void: float | None,
-) -> tuple[list[dict], list[dict]]:
-    candidate_dir.mkdir()
-    rows: list[dict] = []
-    gate_rejections: list[dict] = []
-
+def iter_candidate_geometries(selected_by_source: dict[str, list[dict]]):
+    """Yield the validated periodic geometry for every requested trajectory frame."""
     for source in sorted(selected_by_source, key=source_sort_key):
         records = selected_by_source[source]
         trajectory_paths = {row.get("trajectory_path", "") for row in records}
@@ -223,7 +261,7 @@ def write_candidate_poscars(
             raise FileNotFoundError(f"Missing trajectory for {source}: {trajectory_path}")
 
         by_frame = {int(row["frame"]): row for row in records}
-        written_frames: set[int] = set()
+        processed_frames: set[int] = set()
         for frame, atoms in enumerate(iread(str(trajectory_path), index=":")):
             row = by_frame.get(frame)
             if row is None:
@@ -246,66 +284,123 @@ def write_candidate_poscars(
             if not math.isfinite(normalized_void) or normalized_void <= 0.0:
                 raise ValueError(f"Invalid normalized void metric for {source} frame {frame}")
 
-            reasons = []
-            if min_distance_limit is not None and minimum_distance_value < min_distance_limit:
-                reasons.append(f"min_distance_A<{min_distance_limit:g}")
-            if max_normalized_void is not None and normalized_void > max_normalized_void:
-                reasons.append(f"normalized_void>{max_normalized_void:g}")
-            if reasons:
-                rejected = dict(row)
-                rejected["min_distance_A"] = minimum_distance_value
-                rejected["void_radius_A"] = void_radius
-                rejected["normalized_void"] = normalized_void
-                rejected["physical_gate_reasons"] = ";".join(reasons)
-                gate_rejections.append(rejected)
-                continue
-
-            uncertainty = finite_float(row, "uncertainty")
-            candidate_file = (
-                f"{source}_frame{frame:08d}_U{uncertainty:.6f}.poscar"
+            processed_frames.add(frame)
+            yield (
+                row,
+                atoms,
+                volume_per_atom,
+                minimum_distance_value,
+                void_radius,
+                normalized_void,
             )
-            write(candidate_dir / candidate_file, atoms, format="vasp", direct=True, vasp5=True)
 
-            result = {
+        unresolved = sorted(set(by_frame) - processed_frames)
+        if unresolved:
+            raise RuntimeError(f"Failed to inspect requested {source} frames: {unresolved[:10]}")
+
+
+def audit_candidate_geometry(
+    selected_by_source: dict[str, list[dict]],
+    min_distance_limit: float | None,
+    max_normalized_void: float | None,
+) -> list[dict]:
+    """Return one complete geometry-gate record per requested candidate frame."""
+    rows: list[dict] = []
+    for row, atoms, volume_per_atom, minimum_distance_value, void_radius, normalized_void in (
+        iter_candidate_geometries(selected_by_source)
+    ):
+        reasons = []
+        if min_distance_limit is not None and minimum_distance_value < min_distance_limit:
+            reasons.append(f"min_distance_A<{min_distance_limit:g}")
+        if max_normalized_void is not None and normalized_void > max_normalized_void:
+            reasons.append(f"normalized_void>{max_normalized_void:g}")
+        rows.append(
+            {
                 "source_type": row.get("source_type", ""),
                 "source_value": row.get("source_value", ""),
                 "scale_factor": row.get("scale_factor", ""),
-                "trajectory": source,
-                "trajectory_path": str(trajectory_path),
-                "frame": frame,
-                "uncertainty": uncertainty,
+                "trajectory": row.get("trajectory", ""),
+                "trajectory_path": row.get("trajectory_path", ""),
+                "frame": int(row["frame"]),
+                "uncertainty": finite_float(row, "uncertainty"),
                 "volume_per_atom": volume_per_atom,
                 "max_force": finite_float(row, "max_force"),
                 "max_force_model0": finite_float(row, "max_force_model0"),
-                "instant_pressure_gpa": row.get("instant_pressure_gpa", ""),
+                "candidate_rank_source": row["candidate_rank_source"],
                 "natoms": len(atoms),
                 "min_distance_A": minimum_distance_value,
                 "void_radius_A": void_radius,
                 "normalized_void": normalized_void,
-                "physical_gate_status": "passed",
-                "candidate_rank_source": row["candidate_rank_source"],
-                "candidate_file": candidate_file,
-                "final_selected": "False",
-                "cur_rank": "",
-                "cur_phase": "",
-                "cur_score": "",
-                "selected_file": "",
-                "singular_value": "",
-                "residual_norm": "",
-                "max_similarity_selected": "",
-                "max_similarity_base": "",
+                "geometry_gate_status": "passed" if not reasons else "rejected",
+                "physical_gate_reasons": ";".join(reasons),
             }
-            rows.append(result)
-            written_frames.add(frame)
+        )
+    return rows
 
-        rejected_frames = {
-            int(row["frame"])
-            for row in gate_rejections
-            if row.get("trajectory") == source
+
+def write_candidate_poscars(
+    selected_by_source: dict[str, list[dict]],
+    candidate_dir: Path,
+    min_distance_limit: float | None,
+    max_normalized_void: float | None,
+) -> tuple[list[dict], list[dict]]:
+    candidate_dir.mkdir()
+    rows: list[dict] = []
+    gate_rejections: list[dict] = []
+
+    for row, atoms, volume_per_atom, minimum_distance_value, void_radius, normalized_void in (
+        iter_candidate_geometries(selected_by_source)
+    ):
+        reasons = []
+        if min_distance_limit is not None and minimum_distance_value < min_distance_limit:
+            reasons.append(f"min_distance_A<{min_distance_limit:g}")
+        if max_normalized_void is not None and normalized_void > max_normalized_void:
+            reasons.append(f"normalized_void>{max_normalized_void:g}")
+        if reasons:
+            rejected = dict(row)
+            rejected["min_distance_A"] = minimum_distance_value
+            rejected["void_radius_A"] = void_radius
+            rejected["normalized_void"] = normalized_void
+            rejected["physical_gate_reasons"] = ";".join(reasons)
+            gate_rejections.append(rejected)
+            continue
+
+        source = row["trajectory"]
+        frame = int(row["frame"])
+        uncertainty = finite_float(row, "uncertainty")
+        candidate_file = f"{source}_frame{frame:08d}_U{uncertainty:.6f}.poscar"
+        write(candidate_dir / candidate_file, atoms, format="vasp", direct=True, vasp5=True)
+
+        result = {
+            "source_type": row.get("source_type", ""),
+            "source_value": row.get("source_value", ""),
+            "scale_factor": row.get("scale_factor", ""),
+            "trajectory": source,
+            "trajectory_path": row.get("trajectory_path", ""),
+            "frame": frame,
+            "uncertainty": uncertainty,
+            "volume_per_atom": volume_per_atom,
+            "max_force": finite_float(row, "max_force"),
+            "max_force_model0": finite_float(row, "max_force_model0"),
+            "instant_pressure_gpa": row.get("instant_pressure_gpa", ""),
+            "natoms": len(atoms),
+            "min_distance_A": minimum_distance_value,
+            "void_radius_A": void_radius,
+            "normalized_void": normalized_void,
+            "physical_gate_status": "passed",
+            "candidate_rank_source": row["candidate_rank_source"],
+            "candidate_file": candidate_file,
+            "final_selected": "False",
+            "cur_rank": "",
+            "cur_phase": "",
+            "cur_score": "",
+            "selected_file": "",
+            "singular_value": "",
+            "residual_norm": "",
+            "max_similarity_selected": "",
+            "max_similarity_base": "",
         }
-        unresolved = sorted(set(by_frame) - written_frames - rejected_frames)
-        if unresolved:
-            raise RuntimeError(f"Failed to write requested {source} frames: {unresolved[:10]}")
+        rows.append(result)
 
     return (
         sorted(rows, key=lambda row: (source_sort_key(row["trajectory"]), int(row["frame"]))),
@@ -538,8 +633,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--round-dir", required=True, help="NVT/NPT round directory")
     parser.add_argument("--all-frames", default=None, help="Saved uncertainty_all_frames.csv")
-    parser.add_argument("--base", required=True, help="Current training ASE DB for projection")
-    parser.add_argument("--output-root", required=True, help="New protected selection output directory")
+    parser.add_argument("--base", help="Current training ASE DB for projection")
+    parser.add_argument("--output-root", help="New protected selection output directory")
+    parser.add_argument(
+        "--audit-only",
+        action="store_true",
+        help="Audit post-U periodic geometry gates without writing candidates or running CUR.",
+    )
+    parser.add_argument(
+        "--audit-output",
+        help="New CSV path for --audit-only geometry records.",
+    )
     parser.add_argument("--u-min", type=float, default=0.3)
     parser.add_argument("--candidate-frame-gap", type=int, default=0)
     parser.add_argument("--target", type=int, default=100)
@@ -631,6 +735,27 @@ def validate_args(args: argparse.Namespace) -> None:
         and args.min_volume_per_atom >= args.max_volume_per_atom
     ):
         raise ValueError("--min-volume-per-atom must be below --max-volume-per-atom")
+    if args.audit_only:
+        if not args.audit_output:
+            raise ValueError("--audit-only requires --audit-output")
+        if args.candidate_frame_gap != 0 or args.final_frame_gap != 0:
+            raise ValueError("--audit-only requires zero candidate/final frame gaps")
+        if any(
+            value is not None
+            for value in (
+                args.min_volume_per_atom,
+                args.max_volume_per_atom,
+                args.max_force,
+                args.tail_threshold,
+                args.tail_quantile,
+                args.tail_max,
+            )
+        ):
+            raise ValueError("--audit-only supports only the absolute-U and geometry gates")
+        if args.balance_sources or args.require_all_sources:
+            raise ValueError("--audit-only does not apply source policies")
+    elif not args.base or not args.output_root:
+        raise ValueError("--base and --output-root are required unless --audit-only is used")
 
 
 def main() -> None:
@@ -638,14 +763,8 @@ def main() -> None:
     validate_args(args)
     round_dir = Path(args.round_dir)
     all_frames_path = Path(args.all_frames) if args.all_frames else round_dir / "uncertainty_all_frames.csv"
-    base_path = Path(args.base)
-    output_root = Path(args.output_root)
-    if output_root.exists():
-        raise FileExistsError(f"Output exists; refusing to overwrite: {output_root}")
     if not all_frames_path.is_file():
         raise FileNotFoundError(f"Missing all-frame uncertainty CSV: {all_frames_path}")
-    if not base_path.is_file():
-        raise FileNotFoundError(f"Missing base database: {base_path}")
 
     all_rows = read_csv(all_frames_path)
     expected_sources = {
@@ -662,6 +781,38 @@ def main() -> None:
         args.max_volume_per_atom,
         args.max_force,
     )
+    if args.audit_only:
+        audit_output = Path(args.audit_output)
+        audit_rows = audit_candidate_geometry(
+            selected_by_source,
+            args.min_distance,
+            args.max_normalized_void,
+        )
+        write_csv_atomic(audit_output, audit_rows, GEOMETRY_AUDIT_FIELDS)
+        passed = sum(row["geometry_gate_status"] == "passed" for row in audit_rows)
+        print(
+            f"Geometry audit: inspected={len(audit_rows)} passed={passed} "
+            f"rejected={len(audit_rows) - passed} output={audit_output}",
+            flush=True,
+        )
+        print(
+            "Geometry-audit counts by source: "
+            + str(
+                {
+                    source: sum(row["trajectory"] == source for row in audit_rows)
+                    for source in sorted(selected_by_source, key=source_sort_key)
+                }
+            ),
+            flush=True,
+        )
+        return
+
+    base_path = Path(args.base)
+    output_root = Path(args.output_root)
+    if output_root.exists():
+        raise FileExistsError(f"Output exists; refusing to overwrite: {output_root}")
+    if not base_path.is_file():
+        raise FileNotFoundError(f"Missing base database: {base_path}")
 
     tmp_root = output_root.parent / f".{output_root.name}.tmp-{os.getpid()}"
     if tmp_root.exists():
