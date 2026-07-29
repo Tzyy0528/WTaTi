@@ -16,12 +16,14 @@ selection jobs were then submitted as W `13519`, Ta `13520`, and Ti `13521`.
   Ta `0.167500000`, and Ti `0.117740000` eV/A; p99 tail cap is five frames.
 - Final element-local no-overwrite guards passed immediately before each
   submission. The one immediate status check found all three jobs running.
+- A later user-requested focused accounting check found all selections
+  `COMPLETED / 0:0`: W `13519`, Ta `13520`, and Ti `13521`.
 
 ## How to Use / Verify
 - See `notes.md` for terminal states and source-validation ranges.
 - The submitted jobs write protected D3 score, audit, and projected-CUR
-  outputs below their own round root. Do not inspect status again unless the
-  user requests it; DFT, merge, M3, and E3 remain unauthorized.
+  outputs below their own round root. Validate these artifacts before a DFT
+  decision; DFT, merge, M3, and E3 remain unauthorized.
 
 ## Files Changed
 - `memory/32_clean_fcc_D3_md_validation_selection_card/`: task record.

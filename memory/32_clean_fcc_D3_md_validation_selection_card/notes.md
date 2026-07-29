@@ -114,3 +114,20 @@ The one permitted immediate combined `squeue` check found all three jobs
 running (`R`) on `lpsnode02`: W at `0:39`, Ta at `0:21`, and Ti at `0:03`.
 No polling or monitoring is active. DFT labeling, merge, M3, and E3 remain
 unauthorized.
+
+### User-requested terminal selection status
+
+On the user's subsequent report that structure selection had finished, one
+focused `sacct` check found all three combined selection allocations
+successfully terminal:
+
+| Element | Job ID | State / exit | Elapsed |
+|---|---:|---|---:|
+| W | `13519` | `COMPLETED / 0:0` | `02:15:02` |
+| Ta | `13520` | `COMPLETED / 0:0` | `02:13:03` |
+| Ti | `13521` | `COMPLETED / 0:0` | `02:16:48` |
+
+This confirms scheduler success only. The next mandatory gate is read-only
+validation of the retained score-only, geometry-audit, and projected-CUR
+outputs (including final POSCAR/provenance/source/tail checks) before any
+Protocol-A DFT submission.

@@ -1,6 +1,13 @@
 # Memory Index
 
 ## Current State
+Task `memory/33_clean_fcc_D3_selection_acceptance_and_dft/` accepted all
+retained W/Ta/Ti D3 selection artifacts: complete finite score/audit/CUR
+provenance, frozen gates/cards, final 100-POSCAR source identity, and
+unchanged isolated 300-row D2 bases. Protocol-A DFT batches are submitted:
+W `13531`, Ta `13532`, and Ti `13533`. The one immediate check found W/Ta
+running and Ti pending resources; no monitoring is active.
+
 The retained non-FCC W, Ta, and Ti workflows are complete through D4/M4;
 E4 remains deferred. The clean-FCC restart is complete through D2/M2/E2 in
 `memory/28_fcc_clean_restart/`; the user has now authorized all-element D3
@@ -47,9 +54,9 @@ is frozen, it runs score-only uncertainty, geometry audit, and projected CUR
 in one protected allocation while retaining all intermediate artifacts. This
 is recorded in `memory/31_combined_selection_pipeline/`. User-approved
 clean-FCC D3 cards are recorded in `memory/32_clean_fcc_D3_md_validation_selection_card/`;
-the production combined selection jobs are W `13519`, Ta `13520`, and Ti
-`13521`. Their one immediate combined status check found all three running
-on `lpsnode02`; no monitoring is active.
+the production combined selection jobs W `13519`, Ta `13520`, and Ti `13521`
+are now all `COMPLETED 0:0`. Their retained selection artifacts have not yet
+been independently validated; no monitoring is active.
 
 ## Active Gate / Blocker
 The clean-FCC E0/E1/E2 review is complete in
@@ -64,8 +71,9 @@ jobs later completed `0:0`, and task 32 validated all 21 NPT sources:
 matching M2-only provenance, seven 5,001-frame finite 32-atom trajectories,
 and seven 50,001-row finite NPT summaries per element. Task 32 then froze
 the target-100 combined selection cards, passed final no-overwrite guards,
-and submitted W `13519`, Ta `13520`, and Ti `13521`; all were running at the
-one allowed immediate status check. No monitoring is active.
+and submitted W `13519`, Ta `13520`, and Ti `13521`; all selections are now
+`COMPLETED 0:0`, but their outputs remain to be validated. No monitoring is
+active.
 
 ## Standing Constraints
 - Keep W, Ta, and Ti databases, models, pools, trajectories, and outputs
@@ -86,7 +94,8 @@ one allowed immediate status check. No monitoring is active.
 - Complete task record: `memory/28_fcc_clean_restart/`.
 
 ## Immediate Next Step
-Wait for a user-requested focused status check or completion report for the
-three D3 combined selections, then validate retained score/audit/CUR artifacts
-before any DFT decision. Preserve EOS results as validation-only; DFT, merge,
-M3, and E3 remain unauthorized.
+Wait for a user-requested focused D3 DFT status/completion check, then
+read-only validate each element-local label DB (task/manifest completion,
+Protocol-A/POTCAR identity, finite energy/forces/stress, and exact selected
+source geometry) before any D3 merge. Preserve EOS results as validation-only;
+merge, M3, and E3 remain unauthorized.
