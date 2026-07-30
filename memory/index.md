@@ -1,101 +1,104 @@
 # Memory Index
 
 ## Current State
-Task `memory/33_clean_fcc_D3_selection_acceptance_and_dft/` accepted all
-retained W/Ta/Ti D3 selection artifacts: complete finite score/audit/CUR
-provenance, frozen gates/cards, final 100-POSCAR source identity, and
-unchanged isolated 300-row D2 bases. Protocol-A DFT batches are submitted:
-W `13531`, Ta `13532`, and Ti `13533`. The one immediate check found W/Ta
-running and Ti pending resources; no monitoring is active.
+Task `memory/38_clean_fcc_D4_to_M4_E4/` is complete. The isolated clean-FCC
+W, Ta, and Ti workflows each accepted 100 D4 Protocol-A labels, atomically
+published their own 500-row D4 `current.db`, trained/validated a ten-fold M4
+committee, and accepted the fixed-reference E4 EOS evaluation.
 
-The retained non-FCC W, Ta, and Ti workflows are complete through D4/M4;
-E4 remains deferred. The clean-FCC restart is complete through D2/M2/E2 in
-`memory/28_fcc_clean_restart/`; the user has now authorized all-element D3
-launch, tracked in `memory/30_clean_fcc_D3_npt_launch/`.
+E4 aggregate raw / phase-aligned MAE (meV/atom) is W
+`53.287499 / 16.061060`, Ta `73.655557 / 9.142611`, and Ti
+`31.118935 / 2.870559`. The selected E4 models are W `train-5/5.jnn`, Ta
+`train-2/2.jnn`, and Ti `train-9/9.jnn`. D4 databases, M4 JNN contents, and
+Protocol-B EOS reference CSVs remained checksum-unchanged during E4.
 
-Clean-FCC D1 is complete for all elements. Each D1 state had 200 validated
-finite unary 32-atom rows, its matching M1 committee has ten validated
-5,000-epoch models, and E1 uses only the fixed validation EOS reference.
+Task `memory/39_clean_fcc_D5_rss_configuration/` completed a no-execution D5
+RSS/Mini card. It uses the standard unary atom-count and 0/20/40 GPa Mini
+coverage, retained raw/minimized provenance, 100-label projected-CUR policy,
+and force-stable `train-5/5.jnn` single-model relaxation (with all ten M4
+models retained for later scoring). Ta keeps its physical/selection policy;
+only its Mini relaxer changes from the energy-reporting model to the
+lower-held-out-force model.
 
-All clean-FCC D2 MD jobs are `COMPLETED 0:0`: W `13456`, Ta `13457`, and Ti
-`13458`. Every one of the 15 required source trajectories passed complete
-provenance, finite-output, 32-atom/PBC/positive-cell, and frame-count
-validation.
+Task `memory/40_clean_fcc_D5_rss_generation/` initially submitted
+generation-only RSS/Mini jobs W `13575`, Ta `13576`, and Ti `13577`; all
+failed in six seconds because the wrapper placed JSE under `srun`. The user
+authorized deletion of only the resulting partial `rss/` roots, leaving the
+sibling `slurm_logs/` directories untouched. The direct-JSE wrapper and a
+corrected FCC-D4/M4 preflight are now accepted. Retries W `13579`, Ta
+`13580`, and Ti `13581` completed successfully. W/Ti pools passed validation;
+Ta had 53 raw/minimized provenance mismatches. The user then authorized
+deletion of only Ta's invalid `rss/` root, with its six scheduler-log files
+verified unchanged. Corrected Ta regeneration job `13586` completed with
+exit `0:0` but is again invalid: its Mini log records 60 LAMMPS neighbor-list
+overflows, exactly encompassing all 52 raw/minimized atom-count mismatches.
+The user explicitly approved retaining only the 1,140 fully valid nonfailed
+Ta candidates. Protected Ta selection job `13589` completed successfully:
+1,140 scored, 166 post-U, 124 geometry-valid, and exactly 100
+current-D4-projected-CUR selected POSCARs; 2 fall in the capped tail layer.
 
-All three score-only jobs subsequently completed `0:0`. Every matching
-`uncertainty_all_frames.csv` has 25,005 finite rows and 22,505 production
-rows with complete M1-only provenance.
+Task `memory/41_clean_fcc_D5_rss_selection/` confirmed W `13579`, Ta
+`13580`, and Ti `13581` completed with exit `0:0`. W/Ti each have a valid
+400-raw/1,200-minimized-flat pool with complete atom-count/pressure
+provenance. Ta has 53 minimized/raw atom-count mismatches and is blocked from
+selection pending authorized remediation. The former RSS flat-POSCAR adapter
+gap is now filled by `src/rss_all_frame_scoring.py` and
+`scripts/slurm/run_rss_selection_pipeline.slurm`. Protected W/Ti selection
+jobs `13584` and `13585` both failed in Stage 2 after scoring their full
+1,200-frame pools. The new adapter recorded temporary archive paths in CSVs;
+that bug is fixed and syntax/synthetic-path verified. The user authorized
+deletion of only the two Stage-1 W/Ti `rss-selection/` roots; their
+`slurm_logs/` checksums were unchanged and their RSS pools were retained.
+Corrected W/Ti selection jobs `13591` and `13592` completed successfully and
+each independently validated 100 selected POSCARs. W metrics are
+1,200 scored / 373 post-U / 258 geometry-valid / 115 rejected / 0 tail; Ti
+metrics are 1,200 / 158 / 158 / 0 / 2 tail.
 
-The D2 `U_min` values were recalculated from the matching ten final M1
-test-force MAEs: W `0.166580000`, Ta `0.144480000`, and Ti
-`0.110986000` eV/A. Geometry-audit jobs W `13465`, Ta `13466`, and Ti
-`13467` all completed `0:0` and their full protected CSVs passed coverage,
-finite-value, provenance, and frozen-gate validation. D2 CUR cards are
-frozen in `research-plan.md` section 8.2.2. CUR jobs W `13469`, Ta `13470`,
-and Ti `13471` completed `0:0`; their protected outputs passed complete
-provenance, gate, CUR, duplicate, selected-POSCAR, and source/tail
-validation. Protocol-A DFT jobs W `13477`, Ta `13478`, and Ti `13479` are
-completed and passed full label validation. W/Ta D2 additions are atomically
-published to their independent 300-row current DBs; M2 jobs `13495`/`13496`
-completed and their ten-model, 5,000-epoch 270/30-fold committees passed
-validation. Ti retry `13494` completed after the sole transient VASP
-failure; its 100-row D2 label DB also passed complete validation, then was
-merged and atomically published with its D1 base as a 300-row Ti
-`current.db`. Ti M2 job `13512` completed and passed the same ten-model
-5,000-epoch 270/30-fold validation. All three fixed-reference E2 evaluations
-completed and passed artifact/isolation validation. Their aggregate raw /
-phase-aligned MAEs (meV/atom) are W `67.567137 / 23.830581`, Ta
-`51.670502 / 9.654377`, and Ti `17.053634 / 3.492649`. No monitoring is
-active.
-
-The documented selection workflow now also has
-`scripts/slurm/run_md_selection_pipeline.slurm`: after an element-local card
-is frozen, it runs score-only uncertainty, geometry audit, and projected CUR
-in one protected allocation while retaining all intermediate artifacts. This
-is recorded in `memory/31_combined_selection_pipeline/`. User-approved
-clean-FCC D3 cards are recorded in `memory/32_clean_fcc_D3_md_validation_selection_card/`;
-the production combined selection jobs W `13519`, Ta `13520`, and Ti `13521`
-are now all `COMPLETED 0:0`. Their retained selection artifacts have not yet
-been independently validated; no monitoring is active.
+Task `memory/42_clean_fcc_D5_dft_readiness/` completed a read-only
+Protocol-A and VASP-batch preflight audit. All three 100-POSCAR D5 batches,
+their frozen standard PAWs, 500-row D4 bases, and absent protected D5 outputs
+passed. Under explicit user authorization, independent no-overwrite
+Protocol-A VASP jobs W `13601`, Ta `13602`, and Ti `13603` were submitted;
+one immediate check found them pending. It includes no merge, training, or
+evaluation.
 
 ## Active Gate / Blocker
-The clean-FCC E0/E1/E2 review is complete in
-`memory/29_clean_fcc_e2_scientific_review/deliverable.md`. No element is a
-clear green light for an unmodified D3 NPT card: W and Ta are conditional on
-targeted bcc diagnostics/design plus finite-stress preflight; Ti is held for
-a read-only D2 coverage/selection and full-committee EOS-spread diagnosis.
-The user has explicitly overridden that review hold for an all-element
-clean-FCC D3 launch. Task 30 passed all 30 finite-stress/NPT and no-overwrite
-checks, then submitted D3 jobs W `13513`, Ta `13514`, and Ti `13515`. The
-jobs later completed `0:0`, and task 32 validated all 21 NPT sources:
-matching M2-only provenance, seven 5,001-frame finite 32-atom trajectories,
-and seven 50,001-row finite NPT summaries per element. Task 32 then froze
-the target-100 combined selection cards, passed final no-overwrite guards,
-and submitted W `13519`, Ta `13520`, and Ti `13521`; all selections are now
-`COMPLETED 0:0`, but their outputs remain to be validated. No monitoring is
-active.
+All W/Ta/Ti D5 selections and submission-time preflight are complete; VASP
+jobs W `13601`, Ta `13602`, and Ti `13603` are submitted. Do not poll or
+inspect them unless requested. After terminal completion, label validation is
+required before any separately authorized merge, M5 training, or E5
+evaluation. The RSS adapter preserves the required all-frame
+absolute-U/current-DB-projected CUR policy; `rss_quota_cur_selection.py`
+remains disallowed as a final selector.
 
 ## Standing Constraints
-- Keep W, Ta, and Ti databases, models, pools, trajectories, and outputs
-  completely isolated.
-- EOS references are validation-only and must never enter `current.db`.
-- D2 uses only the matching D1 DB, 32-atom seed, and all ten M1 JNNs.
-- D2 selection must be recalibrated from its own pool; do not loosen later
-  geometry gates or reuse D1 numerical calibration values.
-- Do not overwrite generated outputs, use legacy `nncalc`, or run E4.
+- Keep W, Ta, and Ti databases, committees, candidate pools, trajectories,
+  DFT roots, and EOS outputs completely isolated.
+- EOS structures and labels are validation-only and must never enter any
+  `current.db`.
+- Do not overwrite generated artifacts, use legacy `nncalc`, or begin D5/RSS,
+  MD, labeling, or retraining without explicit user authorization.
+- Preserve the accepted D4 500-row states and M4/E4 records. Future
+  scientific decisions should use the fixed-reference results, not mutate
+  them.
 
 ## Ready Assets
-- Matching clean-FCC 32-atom seeds, D2 selected pools, validated label DBs,
-  isolated 300-row D2 current DBs, validated M2 committees, and protected
-  E2 outputs for W, Ta, and Ti.
-- Fixed EOS references below `results/<X>_eos_benchmark/`.
-- D2 scheduler roots:
-  `<X>-potential/fcc-restart/02-nvt-round-2/slurm_logs/`.
-- Complete task record: `memory/28_fcc_clean_restart/`.
+- W/Ta/Ti D4 `current.db` files: 500 validated finite unary 32-atom rows
+  each.
+- W/Ta/Ti M4 committees:
+  `<X>-potential/fcc-restart/model_versions/M4_from_D4/train-committee/`.
+- Accepted E4 records:
+  `<X>-potential/fcc-restart/evaluations/E4_M4/`.
+- Completed D5 configuration:
+  `memory/39_clean_fcc_D5_rss_configuration/{task_plan.md,notes.md,deliverable.md}`.
+- Submitted D5 generation task:
+  `memory/40_clean_fcc_D5_rss_generation/`.
+- Complete audit and deliverable:
+  `memory/38_clean_fcc_D4_to_M4_E4/{task_plan.md,notes.md,deliverable.md}`.
+- Earlier clean-FCC records remain available in `memory/28_*` through
+  `memory/37_*`; E3 is recorded in
+  `memory/36_clean_fcc_M3_validation_and_E3/`.
 
 ## Immediate Next Step
-Wait for a user-requested focused D3 DFT status/completion check, then
-read-only validate each element-local label DB (task/manifest completion,
-Protocol-A/POTCAR identity, finite energy/forces/stress, and exact selected
-source geometry) before any D3 merge. Preserve EOS results as validation-only;
-merge, M3, and E3 remain unauthorized.
+Obtain separate authorization before any Ta/W/Ti D5 DFT labeling; preserve
+the selected-structure provenance and do not modify `current.db`.

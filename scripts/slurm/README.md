@@ -218,3 +218,80 @@ sbatch scripts/slurm/run_md_worker.slurm \
   --steps 50000 \
   --jnn-paths path/to/0.jnn path/to/1.jnn path/to/2.jnn
 ```
+
+## 5. RSS/Mini candidate-pool generation
+
+`run_rss_round.slurm` runs exactly one element-local
+`src/rss_sampling_embedded.py` generation process directly inside a one-node,
+one-task, 24-hour allocation. JSE must not be wrapped in `srun` for this
+driver. It generates and retains RSS/Mini structures only; it does not score
+a pool, select DFT candidates, label, train, or evaluate.
+
+The RSS output root must be absent. The template rejects an existing root and
+never forwards `--overwrite`; raw and minimized work are retained for later
+provenance validation. Submit with explicit approved parameters, for example:
+
+```bash
+sbatch \
+  --output <X>-potential/<round>/slurm_logs/rss-%j.out \
+  --error <X>-potential/<round>/slurm_logs/rss-%j.err \
+  scripts/slurm/run_rss_round.slurm \
+  --element <X> \
+  --jnn <X>-potential/model_versions/Mk_from_Dk/train-committee/train-N/N.jnn \
+  --out-dir <X>-potential/<round>/rss \
+  --atomic-volume <approved-A3-per-atom> \
+  --nstructs <approved-raw-count> \
+  --natoms-list 9,10,12,15,18,20,22,25 \
+  --mini-press-list 0,200000,400000 \
+  --mini-keyword tri --mini-loop 10 \
+  --mini-etol 1e-4 --mini-ftol 1e-8
+```
+
+The RSS driver has one unary case, so the template fixes `--jobs 1`; it is
+not a multi-case parallel launcher. Adjust partition, account, and wall time
+for the local cluster before production use.
+
+## 6. RSS all-frame scoring and projected-CUR selection
+
+`run_rss_selection_pipeline.slurm` is the protected companion to a completed
+RSS/Mini pool. It requires an absent `<round>/rss-selection/` root, validates
+the retained flat/minimized/raw manifest chain, and refuses a provenance
+mismatch before scoring. It then runs, in one one-node/one-task/24-hour
+allocation:
+
+```text
+all ten M4 models -> RSS all-frame uncertainty/source-map artifacts
+-> absolute-U periodic geometry audit -> current.db-projected CUR
+```
+
+It uses the frozen unary D5 card (50 raw structures for each of
+`9,10,12,15,18,20,22,25` atoms; Mini pressures `0,200000,400000` bar), derives
+the ten-log mean test-force `U_min`, uses no frame gaps, and fixes the p99
+tail cap to `floor(target/20)`. It writes no DFT, database, training, or EOS
+output, and it does not call `rss_quota_cur_selection.py`.
+
+Normally every raw/pressure source must pass retained provenance validation.
+With explicit scientific approval, `--mini-failure-log
+<round>/rss/logs/unary-<X>.log` accepts a partial pool only by excluding the
+exact `exit=1` pairs in the final JSE `LMP FAIL LIST`. It writes
+`mini_failure_exclusions.csv` with the log path/checksums and observed failed
+artifacts, while every nonfailed source remains mandatory. It never scores or
+selects a logged Mini failure.
+
+Example:
+
+```bash
+sbatch \
+  --output <X>-potential/05-rss-round-1/slurm_logs/rss-select-%j.out \
+  --error <X>-potential/05-rss-round-1/slurm_logs/rss-select-%j.err \
+  scripts/slurm/run_rss_selection_pipeline.slurm \
+  --element <X> \
+  --round-dir <X>-potential/05-rss-round-1 \
+  --base <X>-potential/fcc-restart/current.db \
+  --jnn-glob '<X>-potential/fcc-restart/model_versions/M4_from_D4/train-committee/train-*/*.jnn' \
+  --target 100 \
+  --min-distance <approved-A> \
+  --max-normalized-void <approved-normalized-void> \
+  --r-c 6.0 --n-max 5 --l-max 6 --similarity-threshold 0.99999 \
+  [--mini-failure-log <round>/rss/logs/unary-<X>.log]
+```

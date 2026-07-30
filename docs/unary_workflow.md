@@ -77,6 +77,65 @@ Submit an explicitly approved NVT or NPT sweep using
 committee model returns finite stress. Check every output trajectory/log before
 selection.
 
+For the later RSS stages, generate only the approved element-local RSS/Mini
+pool through SLURM:
+
+```bash
+sbatch \
+  --output <X>-potential/<round>/slurm_logs/rss-%j.out \
+  --error <X>-potential/<round>/slurm_logs/rss-%j.err \
+  scripts/slurm/run_rss_round.slurm \
+  --element <X> --jnn <approved-single-Mk-JNN> \
+  --out-dir <X>-potential/<round>/rss \
+  --atomic-volume <approved-A3-per-atom> \
+  --nstructs <approved-count> \
+  --natoms-list 9,10,12,15,18,20,22,25 \
+  --mini-press-list 0,200000,400000 \
+  --mini-keyword tri --mini-loop 10 --mini-etol 1e-4 --mini-ftol 1e-8
+```
+
+The output root must be absent. The template retains raw/minimized work and
+does not score, select, label, train, or evaluate. A later all-pool RSS
+scoring/geometry-audit path must preserve the same all-frame absolute-U,
+physical-gate, and current-DB-projected CUR policy; never substitute the
+quota-CUR RSS helper as final selection.
+
+For an approved, provenance-valid RSS pool, use the RSS-specific combined
+selection pipeline rather than the MD trajectory templates. It validates every
+flat/minimized/raw source mapping before scoring all minimized POSCARs with
+exactly ten committee models, materializes auditable per-atom-count/per-Mini-
+pressure frame archives, writes all-frame and source-map CSVs, then applies
+the normal absolute-U, geometry-audit, and current-DB-projected CUR stages:
+
+```bash
+sbatch --nodes=1 --ntasks=1 --time=24:00:00 \
+  --output=<X>-potential/05-rss-round-1/slurm_logs/rss-select-%j.out \
+  --error=<X>-potential/05-rss-round-1/slurm_logs/rss-select-%j.err \
+  scripts/slurm/run_rss_selection_pipeline.slurm \
+  --element <X> \
+  --round-dir <X>-potential/05-rss-round-1 \
+  --base <X>-potential/fcc-restart/current.db \
+  --jnn-glob '<X>-potential/fcc-restart/model_versions/M4_from_D4/train-committee/train-*/*.jnn' \
+  --target 100 \
+  --min-distance <approved-A> \
+  --max-normalized-void <approved-normalized-void> \
+  --r-c 6.0 --n-max 5 --l-max 6 --similarity-threshold 0.99999 \
+  [--mini-failure-log <round>/rss/logs/unary-<X>.log]
+```
+
+The pipeline derives and records `U_min` from the ten final M4 test-force
+MAEs, uses zero candidate/final frame gaps, a linear p99 extreme-U threshold
+with `floor(0.05 * target)` cap, and refuses an existing
+`<round>/rss-selection/` root. It stops before DFT, merge, training, or EOS.
+Any raw/minimized atom-count or Mini-pressure provenance mismatch is a
+generation defect and must be corrected before selection. The sole documented
+partial-pool exception requires explicit approval and a retained JSE Mini log:
+`--mini-failure-log` excludes only its final `LMP FAIL LIST` `exit=1` source
+pairs, writes `mini_failure_exclusions.csv`, and still requires complete,
+finite, byte-identical provenance for every nonfailed source. Failed Mini
+outputs are never scored or selected, and the unchanged target must remain
+feasible from the valid remainder.
+
 ## 4. Selection
 
 First run full-committee all-frame scoring with

@@ -1,0 +1,1 @@
+raw_index,pressure_index,mini_pressure_bar,raw_source_path,raw_natoms,minimized_source_path,minimized_natoms,minimized_read_error,rss_source_file,rss_source_path,flat_natoms,flat_read_error,flat_sha256,minimized_sha256,flat_matches_minimized,failure_log,exclusion_reason
